@@ -114,6 +114,11 @@ app/src/main/java/io/github/aixtin/blogpad/
 | [JSch（mwiede 分支）](https://github.com/mwiede/jsch) | 0.2.26 | BSD 类 |
 | [Bouncy Castle](https://www.bouncycastle.org/)（`bcprov-jdk18on`） | 1.82 | MIT 类 |
 
+## 开发路线图
+
+版本规划、明确不做的功能，以及编辑/预览的交互规则见
+[ROADMAP.zh-CN.md](ROADMAP.zh-CN.md)（[English](ROADMAP.md)）。
+
 ## 许可证
 
 [MIT](LICENSE)

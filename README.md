@@ -123,6 +123,11 @@ app/src/main/java/io/github/aixtin/blogpad/
 | [JSch (mwiede fork)](https://github.com/mwiede/jsch) | 0.2.26 | BSD-style |
 | [Bouncy Castle](https://www.bouncycastle.org/) (`bcprov-jdk18on`) | 1.82 | MIT-style |
 
+## Roadmap
+
+Planned versions, non-goals, and the editing/preview interaction rules live in
+[ROADMAP.md](ROADMAP.md) ([中文](ROADMAP.zh-CN.md)).
+
 ## License
 
 [MIT](LICENSE)
