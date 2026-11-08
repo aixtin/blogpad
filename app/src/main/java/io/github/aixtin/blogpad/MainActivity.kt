@@ -18,7 +18,17 @@ import android.widget.TextView
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+/**
+ * 编辑页。两种模式：
+ *  - 新建：不传 EXTRA_PATH，正文为空，本地草稿缓存生效；
+ *  - 编辑：传 EXTRA_PATH，先读远端 md 回填，保存时覆盖原文件（slug 变了就远端改名），
+ *    front matter 里不归 App 管的键原样保留。
+ */
 class MainActivity : Activity() {
+
+    companion object {
+        const val EXTRA_PATH = "remote_path"
+    }
 
     private lateinit var etTitle: EditText
     private lateinit var etSlug: EditText
@@ -32,9 +42,19 @@ class MainActivity : Activity() {
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    private var remotePath: String? = null
+    private var loadedDate: String? = null
+    private var extraFrontMatter: List<String> = emptyList()
+    private var loaded = false
+    private var snapshot: String = ""
+
+    private val editing: Boolean get() = remotePath != null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        remotePath = intent.getStringExtra(EXTRA_PATH)
 
         etTitle = findViewById(R.id.etTitle)
         etSlug = findViewById(R.id.etSlug)
@@ -45,18 +65,30 @@ class MainActivity : Activity() {
         btnPublish = findViewById(R.id.btnPublish)
         tvStatus = findViewById(R.id.tvStatus)
 
+        findViewById<TextView>(R.id.tvHeader).text = if (editing) "编辑文章" else "新建文章"
+        findViewById<TextView>(R.id.btnBack).visibility = if (editing) View.VISIBLE else View.GONE
+        findViewById<TextView>(R.id.btnSettings).visibility = if (editing) View.GONE else View.VISIBLE
+
+        findViewById<TextView>(R.id.btnBack).setOnClickListener { confirmExit() }
         findViewById<TextView>(R.id.btnSettings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
+        btnPublish.setOnClickListener { doSave() }
 
-        btnPublish.setOnClickListener { doPublish() }
+        btnPublish.text = if (editing) "保存" else "发布"
 
-        restoreCache()
+        if (editing) {
+            loadRemote()
+        } else {
+            loaded = true
+            restoreCache()
+            snapshot = signature()
+        }
     }
 
     override fun onPause() {
         super.onPause()
-        cacheDraft()
+        if (!editing) cacheDraft()
     }
 
     override fun onDestroy() {
@@ -64,9 +96,84 @@ class MainActivity : Activity() {
         worker.shutdownNow()
     }
 
-    private fun doPublish() {
-        val config = ConfigStore.load(this)
+    override fun onBackPressed() {
+        confirmExit()
+    }
 
+    private fun confirmExit() {
+        if (loaded && signature() != snapshot) {
+            AlertDialog.Builder(this)
+                .setTitle("放弃修改？")
+                .setMessage(if (editing) "这篇改动还没有保存，返回后将丢失。" else "正文还没有发布，返回后草稿会留在这里，下次进来可以继续。")
+                .setNegativeButton("继续编辑", null)
+                .setPositiveButton("返回") { _, _ -> finish() }
+                .show()
+        } else {
+            finish()
+        }
+    }
+
+    // ---------- 编辑模式：读取远端 ----------
+
+    private fun loadRemote() {
+        val path = remotePath ?: return
+        val config = ConfigStore.load(this)
+        val missing = config.connectionReady() ?: config.siteReady()
+        if (missing != null) {
+            showMessage(missing, true)
+            return
+        }
+
+        setEditable(false)
+        setBusy(true, "正在读取远端文章…")
+        worker.execute {
+            try {
+                val source = PostRepository.readPost(config, path)
+                mainHandler.post { fill(source) }
+            } catch (e: Exception) {
+                mainHandler.post { onLoadFailed(e.message ?: e.javaClass.simpleName) }
+            }
+        }
+    }
+
+    private fun fill(source: PostSource) {
+        etTitle.setText(source.draft.title)
+        etSlug.setText(source.draft.slug)
+        etCategories.setText(source.draft.categories)
+        etTags.setText(source.draft.tags)
+        etBody.setText(source.draft.body)
+        cbDraft.isChecked = source.draft.draft
+        loadedDate = source.dateIso
+        extraFrontMatter = source.draft.extraFrontMatter
+        remotePath = source.meta.path
+        loaded = true
+        setEditable(true)
+        setBusy(false, null)
+        snapshot = signature()
+    }
+
+    private fun onLoadFailed(error: String) {
+        loaded = false
+        setEditable(false)
+        setBusy(false, null)
+        showMessage("读取失败：$error", true)
+        AlertDialog.Builder(this)
+            .setTitle("读取失败")
+            .setMessage(error)
+            .setNegativeButton("返回") { _, _ -> finish() }
+            .setPositiveButton("重试") { _, _ -> loadRemote() }
+            .show()
+    }
+
+    // ---------- 保存 ----------
+
+    private fun doSave() {
+        if (!loaded) {
+            showMessage("内容还没读取完成，请稍候", true)
+            return
+        }
+
+        val config = ConfigStore.load(this)
         config.connectionReady()?.let {
             showMessage(it, true)
             startActivity(Intent(this, SettingsActivity::class.java))
@@ -91,33 +198,42 @@ class MainActivity : Activity() {
             return
         }
 
-        val article = Article(
+        val draft = PostDraft(
             title = title,
             slug = SshPublisher.resolveSlug(etSlug.text.toString()),
             categories = etCategories.text.toString(),
             tags = etTags.text.toString(),
             body = body,
-            draft = cbDraft.isChecked
+            draft = cbDraft.isChecked,
+            date = if (editing) loadedDate else null,
+            extraFrontMatter = if (editing) extraFrontMatter else emptyList()
         )
+        val original = remotePath
 
-        setBusy(true, "正在发布…")
+        setBusy(true, if (editing) "正在保存…" else "正在发布…")
         worker.execute {
             try {
-                val result = SshPublisher.publish(config, article)
-                mainHandler.post { onPublishSuccess(article, result) }
+                val result = PostRepository.save(config, draft, original)
+                mainHandler.post { onSaved(draft, result) }
             } catch (e: Exception) {
-                mainHandler.post { onPublishFailed(e.message ?: e.javaClass.simpleName) }
+                mainHandler.post { onSaveFailed(e.message ?: e.javaClass.simpleName) }
             }
         }
     }
 
-    private fun onPublishSuccess(article: Article, result: PublishResult) {
+    private fun onSaved(draft: PostDraft, result: SaveResult) {
         setBusy(false, null)
-        cacheDraft()
+        remotePath = result.remotePath
+        loadedDate = draft.date
+        loaded = true
+        if (!editing) cacheDraft()
+        snapshot = signature()
+
         val message = StringBuilder()
-        message.append("已上传：").append(result.remotePath)
-        if (article.draft) {
-            message.append("\n\n草稿已生成，正式发布前请把 draft 改为 false。")
+        message.append("已写入：").append(result.remotePath)
+        result.renamedFrom?.let { message.append("\n\n原路径已清理：").append(it) }
+        if (draft.draft) {
+            message.append("\n\n草稿已存，正式发布前把「存为草稿」取消勾选再保存一次。")
         } else if (result.url.isNotEmpty()) {
             message.append("\n\n").append(result.url)
         }
@@ -126,20 +242,20 @@ class MainActivity : Activity() {
         }
 
         val builder = AlertDialog.Builder(this)
-            .setTitle(if (article.draft) "已存为草稿" else "发布成功")
+            .setTitle(if (draft.draft) "已存为草稿" else if (editing) "已保存" else "发布成功")
             .setMessage(message.toString())
-            .setPositiveButton("好", null)
-        if (!article.draft && result.url.isNotEmpty()) {
+            .setPositiveButton("好") { _, _ -> finish() }
+        if (!draft.draft && result.url.isNotEmpty()) {
             builder.setNeutralButton("复制链接") { _, _ -> copyLink(result.url) }
         }
         builder.show()
     }
 
-    private fun onPublishFailed(error: String) {
+    private fun onSaveFailed(error: String) {
         setBusy(false, null)
-        showMessage("发布失败", true)
+        showMessage("保存失败", true)
         AlertDialog.Builder(this)
-            .setTitle("发布失败")
+            .setTitle("保存失败")
             .setMessage(error)
             .setPositiveButton("好", null)
             .show()
@@ -151,17 +267,29 @@ class MainActivity : Activity() {
         showMessage("链接已复制", false)
     }
 
+    // ---------- UI 状态 ----------
+
     private fun setBusy(busy: Boolean, status: String?) {
         btnPublish.isEnabled = !busy
-        btnPublish.text = if (busy) "发布中…" else "发布"
-        if (status == null) {
-            if (busy) return
-            tvStatus.visibility = View.GONE
-        } else {
-            tvStatus.visibility = View.VISIBLE
-            tvStatus.setTextColor(Color.parseColor("#2F6FED"))
-            tvStatus.text = status
+        btnPublish.text = when {
+            busy -> if (editing) "保存中…" else "发布中…"
+            else -> if (editing) "保存" else "发布"
         }
+        if (busy) {
+            if (status != null) showMessage(status, false)
+        } else {
+            if (status == null) tvStatus.visibility = View.GONE else showMessage(status, false)
+        }
+    }
+
+    private fun setEditable(enabled: Boolean) {
+        etTitle.isEnabled = enabled
+        etSlug.isEnabled = enabled
+        etCategories.isEnabled = enabled
+        etTags.isEnabled = enabled
+        etBody.isEnabled = enabled
+        cbDraft.isEnabled = enabled
+        btnPublish.isEnabled = enabled
     }
 
     private fun showMessage(message: String, isError: Boolean) {
@@ -169,6 +297,17 @@ class MainActivity : Activity() {
         tvStatus.setTextColor(Color.parseColor(if (isError) "#D93025" else "#1E7B34"))
         tvStatus.text = message
     }
+
+    private fun signature(): String = listOf(
+        etTitle.text.toString(),
+        etSlug.text.toString(),
+        etCategories.text.toString(),
+        etTags.text.toString(),
+        cbDraft.isChecked.toString(),
+        etBody.text.toString()
+    ).joinToString("\u0000")
+
+    // ---------- 新建模式的本地草稿缓存 ----------
 
     private fun cacheDraft() {
         getSharedPreferences("blogpad_cache", MODE_PRIVATE).edit()

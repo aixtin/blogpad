@@ -141,6 +141,20 @@ object SshPublisher {
         }
     }
 
+    /** 建立连接；失败时把原因包成 PublishException 供 UI 直接展示 */
+    internal fun open(config: Config): Session {
+        val repo = FingerprintRepository(config)
+        return try {
+            openSession(config, repo)
+        } catch (e: Exception) {
+            val fp = repo.pendingFingerprint()
+            throw PublishException(
+                if (fp != null) "这台主机还没有被信任（指纹 \$fp），请先到设置里点一次“测试连接”"
+                else describe(e)
+            )
+        }
+    }
+
     private fun openSession(config: Config, repo: FingerprintRepository): Session {
         val jsch = JSch()
         jsch.hostKeyRepository = repo
@@ -172,7 +186,7 @@ object SshPublisher {
         return if (body.endsWith("\n")) body else "$body\n"
     }
 
-    private fun exec(session: Session, command: String): Pair<Int, String> {
+    internal fun exec(session: Session, command: String): Pair<Int, String> {
         var channel: ChannelExec? = null
         return try {
             channel = session.openChannel("exec") as ChannelExec
@@ -243,7 +257,7 @@ object SshPublisher {
             .filter { it.isNotEmpty() }
             .distinct()
 
-    private fun buildUrl(config: Config, slug: String, draft: Boolean): String {
+    internal fun buildUrl(config: Config, slug: String, draft: Boolean): String {
         if (draft) return ""
         val template = config.linkTemplate.trim()
         if (template.isNotEmpty()) return template.replace("{slug}", slug)
@@ -251,7 +265,7 @@ object SshPublisher {
         return if (base.isEmpty()) "" else "$base/archives/$slug/"
     }
 
-    private fun escape(arg: String): String = arg.replace("'", "'\\''")
+    internal fun escape(arg: String): String = arg.replace("'", "'\\''")
 
     private fun tail(text: String, max: Int = 2000): String {
         val trimmed = text.trim()
@@ -259,7 +273,7 @@ object SshPublisher {
         return if (trimmed.length <= max) trimmed else "…" + trimmed.takeLast(max)
     }
 
-    private fun describe(e: Exception): String {
+    internal fun describe(e: Exception): String {
         val msg = e.message ?: e.javaClass.simpleName
         return when {
             msg.contains("Auth fail") || msg.contains("Auth cancel") ->
