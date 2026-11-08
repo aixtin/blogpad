@@ -1,0 +1,4 @@
+-dontwarn org.bouncycastle.**
+-dontwarn com.jcraft.jsch.**
+-keep class com.jcraft.jsch.** { *; }
+-keep class org.bouncycastle.** { *; }

@@ -1,0 +1,49 @@
+# Gradle / Android build output
+build/
+app/build/
+.gradle/
+.cxx/
+captures/
+*.apk
+*.aab
+*.aar
+*.ap_
+output.json
+
+# Local machine configuration
+local.properties
+keystore.properties
+*.jks
+*.keystore
+
+# Credentials and keys
+.env
+.env.*
+*.pem
+*.key
+id_rsa
+id_ed25519
+.git-credentials
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.hprof
+
+# Logs and temporaries
+*.log
+*.tmp
+temp/
+backups/
+
+# Archives
+*.bundle
+*.tgz
+*.tar.gz
+*.zip
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
