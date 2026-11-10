@@ -94,8 +94,8 @@ Notes:
 ```bash
 # JDK 17 and Android SDK 34 are required
 echo "sdk.dir=/path/to/android-sdk" > local.properties
-gradle :app:assembleDebug
-# output: app/build/outputs/apk/debug/app-debug.apk
+gradle :app:assembleRelease
+# output: app/build/outputs/apk/release/app-release.apk
 ```
 
 The project can also be opened directly in Android Studio. `local.properties` is not versioned.

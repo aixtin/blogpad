@@ -86,8 +86,8 @@
 ```bash
 # 需要 JDK 17 与 Android SDK 34
 echo "sdk.dir=/path/to/android-sdk" > local.properties
-gradle :app:assembleDebug
-# 产物：app/build/outputs/apk/debug/app-debug.apk
+gradle :app:assembleRelease
+# 产物：app/build/outputs/apk/release/app-release.apk
 ```
 
 也可直接用 Android Studio 打开工程。`local.properties` 不纳入版本管理。

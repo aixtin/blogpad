@@ -23,7 +23,7 @@ Release、不动下载点。判断某个里程碑要不要破例发版，只问�
 | `versionCode` | `app/build.gradle.kts` → `defaultConfig` | 整数，严格单调递增，发一次版加 1，永不回退、永不复用 |
 | `versionName` | 同上 | `X.Y.Z` 语义化，只增不减 |
 | Git tag | GitHub 仓库 | `vX.Y.Z`，必须与 `versionName` 逐字符一致 |
-| Release 资产名 | GitHub Release | `blogpad-vX.Y.Z-debug.apk` |
+| Release 资产名 | GitHub Release | `blogpad-vX.Y.Z.apk` |
 
 命名含义：
 
@@ -41,7 +41,7 @@ Release、不动下载点。判断某个里程碑要不要破例发版，只问�
 
 - [ ] 过一遍《规范_开源平台发布检查清单》：硬敏感（凭据/密钥/公网 IP/设备序列号/debug token/第三方品牌词）**0 命中**，软敏感（内部代号/拓扑词）人工抽查通过
 - [ ] 工作区干净：`git status` 无未提交改动
-- [ ] `gradle :app:assembleDebug` 编译通过（仓库不含 gradlew，使用系统 Gradle 8.13 + JDK 17 + SDK 34）
+- [ ] `gradle :app:assembleRelease` 编译通过（仓库不含 gradlew，使用系统 Gradle 8.13 + JDK 17 + SDK 34）
 - [ ] 真机冒烟，四项都跑一遍：
   - 全新安装 → 填配置 → 测试连接 → 指纹确认
   - 新建文章 → 发布 → 远端文件内容与 front matter 正确
@@ -57,19 +57,36 @@ Release、不动下载点。判断某个里程碑要不要破例发版，只问�
 
 ## 3. 构建安装包
 
-当前仓库**没有 release 签名配置**，对外分发的是 debug 包（`app/build/outputs/apk/debug/app-debug.apk`）。签名方案落地前，不要对外声称是正式签名包。
+对外分发的是 **release 签名包**（`app/build/outputs/apk/release/app-release.apk`）。
+
+签名配置在 `app/build.gradle.kts`：读 `keystore.properties`，查找顺序是「仓库根 → `~/keys/`」，两者都没有时**回落到 debug 构建**。这是有意为之——新克隆的仓库不需要任何私钥材料也能编译，只有在持有密钥的机器上才会产出正式签名包。
+
+`keystore.properties` 四个字段：`storeFile`、`storePassword`、`keyAlias`、`keyPassword`。
 
 ```bash
 # 仓库根目录即工程目录
 cd <repo-root>
 gradle :app:clean
-gradle :app:assembleDebug
-# 产物：app/build/outputs/apk/debug/app-debug.apk
+gradle :app:assembleRelease
+# 产物：app/build/outputs/apk/release/app-release.apk
+# 校验签名：~/android-sdk/build-tools/35.0.0/apksigner verify --print-certs <apk>
 ```
 
-- [ ] 产物改名为 `blogpad-vX.Y.Z-debug.apk`
-- [ ] 记录校验值：`sha256sum blogpad-vX.Y.Z-debug.apk`（Release 正文里要写）
-- [ ] 从旧版本覆盖安装验证一次：debug 签名的密钥若在多台机器上不一致，覆盖安装会报签名冲突。固定用同一台机器构建，直到接入正式签名
+- [ ] 产物改名为 `blogpad-vX.Y.Z.apk`
+- [ ] 记录校验值：`sha256sum blogpad-vX.Y.Z.apk`（Release 正文里要写）
+- [ ] `apksigner verify --print-certs` 输出的证书 SHA-256 必须是 `f3d85092f51da145e60c90239804e7b3003872893188b9d5719bca4a1b6fa00a`；对不上说明这次用的是 debug key，不能发布
+- [ ] 覆盖安装验证一次：签名不一致会报 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`，先 `adb uninstall io.github.aixtin.blogpad` 再装，注意会清空 App 内的 SSH 配置
+
+### 签名材料管理（硬要求）
+
+| 项 | 位置 | 要求 |
+|----|------|------|
+| keystore | 开发机 `~/keys/blogpad-release.jks` | RSA 4096，有效期 10000 天，权限 600 |
+| 口令 | 同目录 `keystore.properties`，权限 600 | 已被 `.gitignore` 覆盖，**绝不入库** |
+| 证书 SHA-256 | `f3:d85092:f5:1d:a1:45:e6:0c:90:23:98:04:e7:b3:00:38:72:89:31:88:b9:d5:71:9b:ca:4a:1b:6f:a0:0a` | 用于核对构建产物 |
+| 备份 | 仓库之外的离线位置，至少两份 | **丢失即无法再升级已安装版本**，只能改包名重来 |
+
+首版用正式签名的原因：v1.0.0 时期只有开发机一台设备安装，此时切换代价是一次卸载重装；一旦按旧签名对外发布，后续更换就必须让所有已装用户卸载重装。
 
 ---
 
@@ -83,7 +100,7 @@ gradle :app:assembleDebug
 
 - [ ] 提交并推送：`git add -A && git commit -m "release: vX.Y.Z" && git push`
 - [ ] 打 tag 并推送：`git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z`
-- [ ] 新建 Release：选中该 tag，标题 `vX.Y.Z`，正文写变更要点 + 完整 SHA256，上传 `blogpad-vX.Y.Z-debug.apk`
+- [ ] 新建 Release：选中该 tag，标题 `vX.Y.Z`，正文写变更要点 + 完整 SHA256，上传 `blogpad-vX.Y.Z.apk`
 - [ ] 三个不许犯的错：
   1. 不许存成 **Draft** —— 草稿在 Releases 页不显示，等于没发
   2. 不许勾 **Pre-release** —— 同上，且会误导 `latest` 的语义
@@ -128,7 +145,7 @@ gradle :app:assembleDebug
 ## 6. 发布后验证
 
 - [ ] 仓库首页「Latest release」显示的正是刚发的版本，不是草稿、不是 pre-release
-- [ ] 资产可下载，文件名 `blogpad-vX.Y.Z-debug.apk`，SHA256 与本地一致
+- [ ] 资产可下载，文件名 `blogpad-vX.Y.Z.apk`，SHA256 与本地一致
 - [ ] 覆盖安装后：启动 → 配置仍在 → 文章列表能拉到远端条目
 - [ ] 发一条测试文章，随后在站点确认已生成页面（验证完删掉或改回草稿）
 - [ ] 直链下载点返回的是新包
@@ -147,6 +164,6 @@ gradle :app:assembleDebug
 
 ## 8. 尚未落地（待办）
 
-1. **正式签名**：配置 `keystore.properties` + `signingConfigs`（不入库），产出 `assembleRelease` 包，把资产名从 `-debug` 改为正式包名。签名材料一旦对外发布就不能更换。
+1. ~~正式签名~~ **已落地（2026-11-10）**：见 §3。`signingConfigs` 已接入，`assembleRelease` 产出正式签名包，资产名去掉 `-debug`。签名材料托管在开发机 `~/keys/`，备份义务写在 §3「签名材料管理」。
 2. **CI**：目前无 GitHub Actions。最小可用版本是 push 触发 `assembleDebug` 与 lint，仅在 tag 时产出资产。
 3. **发版脚本**：把 §4 的必改清单做成 `scripts/release.sh`：读入 versionName → 校验 versionCode 递增 → 改 `build.gradle.kts` → 全文 grep 文档里的旧版本号并列未同步文件，漏改当场点名。
