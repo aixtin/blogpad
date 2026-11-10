@@ -1,5 +1,24 @@
 # Roadmap
 
+## Release policy
+
+Exactly two versions are published: **v1.0.0 (released)** and **v1.5.0 (first complete feature
+set)**.
+
+v1.1 through v1.4 are internal milestones, not releases. Each milestone must compile and install on
+a real device for self-testing, but it gets no tag, no GitHub Release, and no download-point update.
+The reasons:
+
+- The app has no built-in update check, so publishing never reaches existing users on its own — the
+  distribution value of a release is zero.
+- A single maintainer does the work, and cutting a release is a fixed cost (build, rename, checksum,
+  notes, syncing the download point). Semi-finished work should not pay that cost.
+- Nothing between v1.0.0 and v1.5.0 is a live defect that users need urgently.
+
+Releases are counted in closed feature sets, not in commits or in version-number slots. During
+development `versionName` carries the target version directly (e.g. `1.5.0-dev`); `versionCode` is
+bumped only when a release actually ships.
+
 ## Guiding principles
 
 1. **The remote directory is the only source of truth.** The post list is a projection of
@@ -11,19 +30,19 @@
 3. **A preview checks structure, not styling.** Themes belong to the site, not to the app. Preview
    answers "is the content well-formed" (headings, lists, code fences, links, images) and does not
    chase pixel parity with a third-party theme.
-4. **Every version is installable and verifiable on its own.** No step leaves a half-built screen
-   in the release.
+4. **Every milestone is installable and verifiable on its own.** Internal builds are not published,
+   but the repository is never left in a state that fails to compile or ships a half-built screen.
 
 ## Versions
 
-| Version | Scope | Notes |
-|---------|-------|-------|
-| v1.0.0 | Single-screen editor: write, publish, draft mode, rollback | Released |
-| v1.1 | Post list as the entry screen: title, date, draft badge, tags; new post; open existing post; refresh | List → editor navigation |
-| v1.2 | Editing an existing post: load remote source, overwrite in place, remote rename when the slug changes, multi-file rollback on build failure | Split/merge rollback into an explicit operation list |
-| v1.3 | Category and tag discovery: scan existing front matter, offer selectable chips, allow new values | Cached locally, refreshed on pull |
-| v1.4 | Housekeeping: delete post, draft → published, search, offline list cache | —— |
-| v1.5 | Preview: structural read-only render, toggle in the top bar, cursor position preserved, "open in browser" escape hatch | See principles 3 |
+| Version | Scope | Status | Notes |
+|---------|-------|--------|-------|
+| v1.0.0 | Single-screen editor: write, publish, draft mode, rollback | Released | The only published version |
+| v1.1 | Post list as the entry screen: title, date, draft badge, tags; new post; open existing post; refresh | Done | List → editor navigation |
+| v1.2 | Editing an existing post: load remote source, overwrite in place, remote rename when the slug changes, multi-file rollback on build failure | Done | Split/merge rollback into an explicit operation list |
+| v1.3 | Category and tag discovery: scan existing front matter, offer selectable chips, allow new values | Not started | Cached locally, refreshed on pull |
+| v1.4 | Housekeeping: delete post, draft → published, search, offline list cache | Not started | —— |
+| v1.5 | Preview: structural read-only render, toggle in the top bar, cursor position preserved, "open in browser" escape hatch | Not started | See principle 3; published once as v1.5.0 |
 
 ## Interaction rules for editing and preview (v1.5)
 

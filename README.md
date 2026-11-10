@@ -8,6 +8,11 @@ database, no third-party service — just SSH and a Git-based site.
 
 ## Features
 
+- **Post list as the entry screen** — the home screen is a projection of `content/post` on the
+  server: title, date, draft badge, and tags. Pull to refresh, tap a row to edit.
+- **Edit existing posts** — the remote `.md` is loaded back into the form and saved in place; a
+  changed slug renames the remote file and removes the old one; front matter keys the app does not
+  own are preserved verbatim.
 - **Write and publish from the phone** — title, slug, categories, tags, body, and a draft toggle.
 - **Markdown with Hugo front matter** — generated automatically (`title`, `date`, `draft`, `slug`,
   `categories`, `tags`), so the file drops straight into a Hugo site.
@@ -75,12 +80,14 @@ Notes:
 
 ## Usage
 
-1. Fill in title and body; slug, categories, and tags are optional.
-2. Leave the slug empty to generate one from a timestamp.
-3. Check **Save as draft** to write `draft: true` and skip the link.
-4. Tap **Publish**. The status line reports the remote path, the post URL, and the tail of the
-   build output.
-5. On success the link can be copied to the clipboard with one tap.
+1. The app opens on the post list. Tap **New** to start a post, or tap a row to edit it.
+2. Fill in title and body; slug, categories, and tags are optional.
+3. Leave the slug empty to generate one from a timestamp. Changing the slug of an existing post
+   renames the remote file on save and removes the old one.
+4. Check **Save as draft** to write `draft: true` and skip the link.
+5. Tap **Publish** (**Save** when editing). The status line reports the remote path, the post URL,
+   and the tail of the build output.
+6. On success the link can be copied to the clipboard with one tap.
 
 ## Build from source
 
@@ -111,7 +118,9 @@ scoped accordingly.
 ```
 app/src/main/java/io/github/aixtin/blogpad/
 ├── ConfigStore.kt      # configuration model, Keystore encryption, persistence
-├── MainActivity.kt     # editor, publish flow, local draft cache
+├── PostListActivity.kt # post list: remote directory listing, row rendering, open to edit
+├── PostRepository.kt   # remote read/write, slug rename, rollback on build failure
+├── MainActivity.kt     # editor: new and edit modes, publish flow, local draft cache
 ├── SettingsActivity.kt # connection and site settings, fingerprint confirmation
 └── SshPublisher.kt     # SFTP upload, remote build, rollback, front matter rendering
 ```
@@ -122,6 +131,15 @@ app/src/main/java/io/github/aixtin/blogpad/
 |---------|---------|---------|
 | [JSch (mwiede fork)](https://github.com/mwiede/jsch) | 0.2.26 | BSD-style |
 | [Bouncy Castle](https://www.bouncycastle.org/) (`bcprov-jdk18on`) | 1.82 | MIT-style |
+
+## Version history
+
+| Version | Date | versionCode | Notes |
+|---------|------|-------------|-------|
+| 1.0.0 | 2026-11-09 | 1 | First release: single-screen editor with write, publish, draft, and rollback |
+| 1.5.0-dev | — | 2 | In development: post list, editing existing posts, categories and tags, housekeeping, structural preview; shipped once when complete |
+
+The release procedure lives in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md).
 
 ## Roadmap
 

@@ -8,6 +8,10 @@
 
 ## 功能
 
+- **文章列表为入口** —— 首页即服务器 `content/post` 的投影：标题、日期、草稿标记、标签；
+  下拉刷新，点条目进入编辑。
+- **编辑已有文章** —— 读远端 `.md` 回填，保存时原地覆盖；slug 改了就在远端改名并清理旧文件；
+  不归应用管的 front matter 键原样保留。
 - **手机端写作与发布** —— 标题、slug、分类、标签、正文，以及草稿开关。
 - **自动生成 Hugo front matter** —— `title`、`date`、`draft`、`slug`、`categories`、`tags`
   由 App 写入，文件可直接被 Hugo 识别，无需手工拼头信息。
@@ -70,11 +74,12 @@
 
 ## 使用
 
-1. 填写标题与正文，slug、分类、标签可选。
-2. slug 留空时按时间戳生成。
-3. 勾选「存为草稿」则以 `draft: true` 写入，不生成链接。
-4. 点「发布」。状态栏会显示远端路径、文章链接，以及构建输出的尾部内容。
-5. 发布成功后链接可一键复制。
+1. 打开应用即文章列表。点「新建」写新文章，或点任一条目进入编辑。
+2. 填写标题与正文，slug、分类、标签可选。
+3. slug 留空时按时间戳生成。编辑已有文章时改动 slug，保存后远端文件会改名，旧文件被清理。
+4. 勾选「存为草稿」则以 `draft: true` 写入，不生成链接。
+5. 点「发布」（编辑时为「保存」）。状态栏会显示远端路径、文章链接，以及构建输出的尾部内容。
+6. 发布成功后链接可一键复制。
 
 ## 从源码构建
 
@@ -102,7 +107,9 @@ gradle :app:assembleDebug
 ```
 app/src/main/java/io/github/aixtin/blogpad/
 ├── ConfigStore.kt      # 配置模型、Keystore 加密、持久化
-├── MainActivity.kt     # 编辑器、发布流程、本地草稿缓存
+├── PostListActivity.kt # 文章列表：拉取远端目录、渲染条目、进入编辑
+├── PostRepository.kt   # 远端读写、slug 改名、构建失败回滚
+├── MainActivity.kt     # 编辑器：新建与编辑两种模式、发布流程、本地草稿缓存
 ├── SettingsActivity.kt # 连接与站点设置、指纹确认
 └── SshPublisher.kt     # SFTP 上传、远程构建、回滚、front matter 渲染
 ```
@@ -113,6 +120,15 @@ app/src/main/java/io/github/aixtin/blogpad/
 |----|------|--------|
 | [JSch（mwiede 分支）](https://github.com/mwiede/jsch) | 0.2.26 | BSD 类 |
 | [Bouncy Castle](https://www.bouncycastle.org/)（`bcprov-jdk18on`） | 1.82 | MIT 类 |
+
+## 版本记录
+
+| 版本 | 日期 | versionCode | 要点 |
+|------|------|-------------|------|
+| 1.0.0 | 2026-11-09 | 1 | 首个版本：单页编辑器，写作、发布、草稿、构建失败回滚 |
+| 1.5.0-dev | — | 2 | 开发中：文章列表、编辑已有文章、分类标签、收尾功能、结构预览；完成后一次性发布 |
+
+发布流程见 [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md)。
 
 ## 开发路线图
 
