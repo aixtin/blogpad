@@ -32,8 +32,8 @@ android {
         applicationId = "io.github.aixtin.blogpad"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.5.0-dev"
+        versionCode = 3
+        versionName = "1.5.0"
     }
 
     signingConfigs {

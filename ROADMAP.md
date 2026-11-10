@@ -2,8 +2,8 @@
 
 ## Release policy
 
-Exactly two versions are published: **v1.0.0 (released)** and **v1.5.0 (first complete feature
-set)**.
+Exactly two versions are published: **v1.0.0 (released)** and **v1.5.0 (released, first complete
+feature set)**.
 
 v1.1 through v1.4 are internal milestones, not releases. Each milestone must compile and install on
 a real device for self-testing, but it gets no tag, no GitHub Release, and no download-point update.
@@ -42,7 +42,7 @@ bumped only when a release actually ships.
 | v1.2 | Editing an existing post: load remote source, overwrite in place, remote rename when the slug changes, multi-file rollback on build failure | Done | Split/merge rollback into an explicit operation list |
 | v1.3 | Category and tag discovery: scan existing front matter, offer selectable chips, allow new values | Done | Taxonomy cached in SharedPreferences, rewritten on every list refresh; chips are shortcuts only |
 | v1.4 | Housekeeping: delete post, draft → published, search, offline list cache | Done | Delete and draft toggle both rebuild and roll back on failure; search filters title/slug/tags/categories in memory; last successful listing is cached for offline viewing, and writes stay blocked while offline |
-| v1.5 | Preview: structural read-only render, toggle in the top bar, cursor position preserved, "open in browser" escape hatch | Done | Renders headings, lists, quotes, fenced code, tables, images and links; the toggle keeps scroll offset and cursor; the browser button shows only when the post has a live URL. Published once as v1.5.0 |
+| v1.5 | Preview: structural read-only render, toggle in the top bar, cursor position preserved, "open in browser" escape hatch | Released | Renders headings, lists, quotes, fenced code, tables, images and links; the toggle keeps scroll offset and cursor; the browser button shows only when the post has a live URL |
 
 ## Interaction rules for editing and preview (v1.5)
 
