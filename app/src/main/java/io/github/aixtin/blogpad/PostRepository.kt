@@ -178,6 +178,118 @@ object PostRepository {
         }
     }
 
+    /**
+     * 删除一篇文章：读回旧内容 -> 删文件 -> 构建。
+     * 构建失败把文件原样写回，站点不会停在“少一篇但没重建”的半截状态。
+     */
+    fun delete(config: Config, path: String) {
+        val siteRoot = config.siteRoot.trimEnd('/')
+        val session = SshPublisher.open(config)
+        var sftp: ChannelSftp? = null
+        var previous: ByteArray? = null
+        try {
+            sftp = session.openChannel("sftp") as ChannelSftp
+            sftp.connect(20000)
+            previous = readOrNull(sftp, path)
+                ?: throw PublishException("远端已经没有这个文件，可能已被其它方式删除：$path")
+
+            sftp.rm(path)
+
+            val command = "cd '${SshPublisher.escape(siteRoot)}' && ${config.buildCmd}"
+            val (code, output) = SshPublisher.exec(session, command)
+            if (code != 0) {
+                rollback(sftp, path, previous)
+                try { SshPublisher.exec(session, command) } catch (_: Exception) { }
+                throw PublishException("构建失败，文章已恢复。\n\n${tail(output)}")
+            }
+        } catch (e: PublishException) {
+            throw e
+        } catch (e: Exception) {
+            try { sftp?.let { rollback(it, path, previous) } } catch (_: Exception) { }
+            throw PublishException(SshPublisher.describe(e))
+        } finally {
+            try { sftp?.disconnect() } catch (_: Exception) { }
+            try { session.disconnect() } catch (_: Exception) { }
+        }
+    }
+
+    /**
+     * 只翻转 front matter 里的 draft 一行，正文与其它字段逐字节不动。
+     * 列表页的「草稿转发布」走这里，不经过编辑缓冲区，避免把本地未保存的改动带出去。
+     * 返回是否真的产生了改动（已经是目标状态时直接返回 false，不触发构建）。
+     */
+    fun setDraft(config: Config, path: String, draft: Boolean): Boolean {
+        val siteRoot = config.siteRoot.trimEnd('/')
+        val session = SshPublisher.open(config)
+        var sftp: ChannelSftp? = null
+        var previous: ByteArray? = null
+        try {
+            sftp = session.openChannel("sftp") as ChannelSftp
+            sftp.connect(20000)
+            previous = readOrNull(sftp, path)
+                ?: throw PublishException("远端已经没有这个文件：$path")
+
+            val raw = previous.toString(Charsets.UTF_8)
+            val updated = rewriteDraftFlag(raw, draft)
+            if (updated == null) return false
+
+            sftp.put(ByteArrayInputStream(updated.toByteArray(Charsets.UTF_8)), path)
+
+            val command = "cd '${SshPublisher.escape(siteRoot)}' && ${config.buildCmd}"
+            val (code, output) = SshPublisher.exec(session, command)
+            if (code != 0) {
+                rollback(sftp, path, previous)
+                try { SshPublisher.exec(session, command) } catch (_: Exception) { }
+                throw PublishException("构建失败，状态已还原。\n\n${tail(output)}")
+            }
+            return true
+        } catch (e: PublishException) {
+            throw e
+        } catch (e: Exception) {
+            try { sftp?.let { rollback(it, path, previous) } } catch (_: Exception) { }
+            throw PublishException(SshPublisher.describe(e))
+        } finally {
+            try { sftp?.disconnect() } catch (_: Exception) { }
+            try { session.disconnect() } catch (_: Exception) { }
+        }
+    }
+
+    /**
+     * 把 draft 改成目标值。返回 null 表示已是目标状态，不需要写盘。
+     * 没有 front matter 的文件补一段最小头；头没闭合的视为异常文件，不猜，交回给用户去编辑器处理。
+     */
+    private fun rewriteDraftFlag(raw: String, draft: Boolean): String? {
+        val crlf = raw.contains("\r\n")
+        val normalized = raw.replace("\r\n", "\n")
+        val lines = normalized.split('\n').toMutableList()
+        val target = "draft: $draft"
+
+        if (lines.isEmpty() || lines[0].trim() != "---") {
+            return "---\n$target\n---\n\n" + normalized.trimStart('\n')
+        }
+
+        var end = -1
+        for (i in 1 until lines.size) {
+            if (lines[i].trim() == "---") { end = i; break }
+        }
+        if (end < 0) throw PublishException("这个文件的 front matter 没有闭合，请到编辑器里手动处理")
+
+        for (i in 1 until end) {
+            val line = lines[i]
+            val isTop = line.isNotEmpty() && !line[0].isWhitespace()
+            if (!isTop) continue
+            val idx = line.indexOf(':')
+            if (idx <= 0 || line.substring(0, idx).trim() != "draft") continue
+            val current = line.substring(idx + 1).trim().equals("true", ignoreCase = true)
+            if (current == draft) return null
+            lines[i] = target
+            return lines.joinToString(if (crlf) "\r\n" else "\n")
+        }
+
+        lines.add(1, target)
+        return lines.joinToString(if (crlf) "\r\n" else "\n")
+    }
+
     // ---------- 渲染 ----------
 
     fun render(draft: PostDraft, isoDate: String?): String {

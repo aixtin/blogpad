@@ -61,6 +61,26 @@
             android:textSize="15sp" />
     </LinearLayout>
 
+    <EditText
+        android:id="@+id/etSearch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="12dp"
+        android:background="@drawable/bg_search"
+        android:hint="搜索标题 / slug / 标签"
+        android:imeOptions="actionSearch"
+        android:inputType="text"
+        android:maxLines="1"
+        android:paddingStart="12dp"
+        android:paddingTop="9dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="9dp"
+        android:textColor="#1A1A1E"
+        android:textColorHint="#9AA0A8"
+        android:textSize="14sp" />
+
     <TextView
         android:id="@+id/tvStatus"
         android:layout_width="match_parent"
