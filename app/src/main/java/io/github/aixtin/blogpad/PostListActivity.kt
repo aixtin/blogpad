@@ -95,6 +95,8 @@ class PostListActivity : Activity() {
     private fun onLoaded(posts: List<PostMeta>) {
         loading = false
         adapter.setItems(posts)
+        // 顺手把分类/标签词表刷进本地缓存，编辑页的 chip 用的是这份
+        TaxonomyStore.save(this, PostRepository.buildTaxonomy(posts))
         if (posts.isEmpty()) {
             tvEmpty.visibility = View.VISIBLE
             tvEmpty.text = "这个目录下还没有文章\n点右上角「新建」写第一篇"

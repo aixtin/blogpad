@@ -10,10 +10,15 @@ import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.TextView
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -38,6 +43,15 @@ class MainActivity : Activity() {
     private lateinit var cbDraft: CheckBox
     private lateinit var btnPublish: Button
     private lateinit var tvStatus: TextView
+
+    private lateinit var rowCategoryChips: View
+    private lateinit var rowTagChips: View
+    private lateinit var layoutCategoryChips: LinearLayout
+    private lateinit var layoutTagChips: LinearLayout
+
+    /** 词表来自上次列表刷新，chip 只是快捷输入，最终写盘仍看输入框 */
+    private var taxonomy: Taxonomy = Taxonomy()
+    private val chipRenderers = ArrayList<() -> Unit>()
 
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -64,6 +78,30 @@ class MainActivity : Activity() {
         cbDraft = findViewById(R.id.cbDraft)
         btnPublish = findViewById(R.id.btnPublish)
         tvStatus = findViewById(R.id.tvStatus)
+
+        rowCategoryChips = findViewById(R.id.rowCategoryChips)
+        rowTagChips = findViewById(R.id.rowTagChips)
+        layoutCategoryChips = findViewById(R.id.layoutCategoryChips)
+        layoutTagChips = findViewById(R.id.layoutTagChips)
+        taxonomy = TaxonomyStore.load(this)
+        chipRenderers.add(
+            bindChipInput(
+                input = etCategories,
+                chips = layoutCategoryChips,
+                row = rowCategoryChips,
+                multiSelect = false,
+                suggest = { taxonomy.categories }
+            )
+        )
+        chipRenderers.add(
+            bindChipInput(
+                input = etTags,
+                chips = layoutTagChips,
+                row = rowTagChips,
+                multiSelect = true,
+                suggest = { taxonomy.tags }
+            )
+        )
 
         findViewById<TextView>(R.id.tvHeader).text = if (editing) "编辑文章" else "新建文章"
         findViewById<TextView>(R.id.btnBack).visibility = if (editing) View.VISIBLE else View.GONE
@@ -297,6 +335,92 @@ class MainActivity : Activity() {
         tvStatus.setTextColor(Color.parseColor(if (isError) "#D93025" else "#1E7B34"))
         tvStatus.text = message
     }
+
+    // ---------- 分类 / 标签 chip ----------
+
+    /**
+     * 输入框与 chip 双向同步：
+     *  - 输入框里逗号分隔的值决定谁高亮，手输的新值会临时补一个 chip 出来；
+     *  - 分类单选（再点一次取消），标签多选，写完一律回填输入框。
+     * 保存逻辑完全不感知 chip，词表只是快捷输入。
+     */
+    private fun bindChipInput(
+        input: EditText,
+        chips: LinearLayout,
+        row: View,
+        multiSelect: Boolean,
+        suggest: () -> List<String>
+    ): () -> Unit {
+        var lastValues: List<String>? = null
+        var lastSelected: List<String>? = null
+
+        val render: () -> Unit = {
+            val selected = splitValues(input.text.toString())
+            val values = ArrayList(suggest())
+            selected.forEach { if (!values.contains(it)) values.add(it) }
+            if (values != lastValues || selected != lastSelected) {
+                lastValues = values
+                lastSelected = selected
+                chips.removeAllViews()
+                values.forEach { value ->
+                    chips.addView(makeChip(value, selected.contains(value)) {
+                        if (input.isEnabled) {
+                            val next = if (multiSelect) {
+                                if (selected.contains(value)) selected - value else selected + value
+                            } else {
+                                if (selected.size == 1 && selected[0] == value) {
+                                    emptyList()
+                                } else {
+                                    listOf(value)
+                                }
+                            }
+                            input.setText(next.joinToString(", "))
+                            input.setSelection(input.text.length)
+                        }
+                    })
+                }
+                row.visibility = if (values.isEmpty()) View.GONE else View.VISIBLE
+            }
+        }
+
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) = render()
+        })
+        render()
+        return render
+    }
+
+    private fun makeChip(value: String, selected: Boolean, onClick: () -> Unit): TextView {
+        val chip = TextView(this)
+        chip.text = value
+        chip.textSize = 13f
+        chip.gravity = Gravity.CENTER
+        chip.setPadding(dp(12), dp(6), dp(12), dp(6))
+        chip.setTextColor(getColorStateList(R.color.chip_text))
+        chip.setBackgroundResource(R.drawable.bg_chip)
+        chip.isSelected = selected
+        chip.isClickable = true
+        chip.isFocusable = true
+        val lp = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        lp.marginEnd = dp(8)
+        chip.layoutParams = lp
+        chip.setOnClickListener { onClick() }
+        return chip
+    }
+
+    /** chip 值只按逗号/分号切，不切空格——分类名本身可能带空格 */
+    private fun splitValues(text: String): List<String> =
+        text.split(',', '，', ';', '；')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
 
     private fun signature(): String = listOf(
         etTitle.text.toString(),

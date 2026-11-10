@@ -15,7 +15,8 @@ data class PostMeta(
     val title: String,
     val date: String,
     val draft: Boolean,
-    val tags: List<String>
+    val tags: List<String>,
+    val categories: List<String> = emptyList()
 )
 
 /** 编辑缓冲区 */
@@ -78,6 +79,27 @@ object PostRepository {
         } finally {
             try { session.disconnect() } catch (_: Exception) { }
         }
+    }
+
+    /** 把列表里所有文章的 front matter 压成一张词表：出现次数降序，同频按名字排 */
+    fun buildTaxonomy(posts: List<PostMeta>): Taxonomy {
+        fun rank(values: List<List<String>>): List<String> {
+            val counter = LinkedHashMap<String, Int>()
+            values.forEach { list ->
+                list.forEach { counter[it] = (counter[it] ?: 0) + 1 }
+            }
+            return counter.entries
+                .sortedWith(
+                    compareByDescending<Map.Entry<String, Int>> { it.value }
+                        .thenBy { it.key.lowercase() }
+                )
+                .map { it.key }
+        }
+        return Taxonomy(
+            categories = rank(posts.map { it.categories }),
+            tags = rank(posts.map { it.tags }),
+            updatedAt = System.currentTimeMillis()
+        )
     }
 
     fun readPost(config: Config, path: String): PostSource {
@@ -228,7 +250,8 @@ object PostRepository {
             title = title,
             date = displayDate(fields["date"]),
             draft = fields["draft"]?.trim()?.equals("true", ignoreCase = true) == true,
-            tags = parseList(fields["tags"])
+            tags = parseList(fields["tags"]),
+            categories = parseList(fields["categories"])
         )
     }
 
@@ -276,7 +299,8 @@ object PostRepository {
             title = unquote(fields["title"].orEmpty()).ifBlank { slug },
             date = displayDate(fields["date"]),
             draft = fields["draft"]?.trim()?.equals("true", ignoreCase = true) == true,
-            tags = parseList(fields["tags"])
+            tags = parseList(fields["tags"]),
+            categories = parseList(fields["categories"])
         )
         val draft = PostDraft(
             title = meta.title,

@@ -40,7 +40,7 @@ bumped only when a release actually ships.
 | v1.0.0 | Single-screen editor: write, publish, draft mode, rollback | Released | The only published version |
 | v1.1 | Post list as the entry screen: title, date, draft badge, tags; new post; open existing post; refresh | Done | List → editor navigation |
 | v1.2 | Editing an existing post: load remote source, overwrite in place, remote rename when the slug changes, multi-file rollback on build failure | Done | Split/merge rollback into an explicit operation list |
-| v1.3 | Category and tag discovery: scan existing front matter, offer selectable chips, allow new values | Not started | Cached locally, refreshed on pull |
+| v1.3 | Category and tag discovery: scan existing front matter, offer selectable chips, allow new values | Done | Taxonomy cached in SharedPreferences, rewritten on every list refresh; chips are shortcuts only |
 | v1.4 | Housekeeping: delete post, draft → published, search, offline list cache | Not started | —— |
 | v1.5 | Preview: structural read-only render, toggle in the top bar, cursor position preserved, "open in browser" escape hatch | Not started | See principle 3; published once as v1.5.0 |
 
