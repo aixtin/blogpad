@@ -7,6 +7,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -19,6 +20,7 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -48,6 +50,20 @@ class MainActivity : Activity() {
     private lateinit var rowTagChips: View
     private lateinit var layoutCategoryChips: LinearLayout
     private lateinit var layoutTagChips: LinearLayout
+
+    private lateinit var btnSettings: TextView
+    private lateinit var btnToggle: TextView
+    private lateinit var btnBrowser: TextView
+    private lateinit var bottomBar: View
+    private lateinit var scrollView: ScrollView
+    private lateinit var editPane: View
+    private lateinit var previewPane: LinearLayout
+
+    /** 结构预览开关；切换时保留编辑区滚动位置与光标，预览区也各自记住位置 */
+    private var previewing = false
+    private var editScrollY = 0
+    private var previewScrollY = 0
+    private var bodySelection = 0
 
     /** 词表来自上次列表刷新，chip 只是快捷输入，最终写盘仍看输入框 */
     private var taxonomy: Taxonomy = Taxonomy()
@@ -83,6 +99,13 @@ class MainActivity : Activity() {
         rowTagChips = findViewById(R.id.rowTagChips)
         layoutCategoryChips = findViewById(R.id.layoutCategoryChips)
         layoutTagChips = findViewById(R.id.layoutTagChips)
+        btnSettings = findViewById(R.id.btnSettings)
+        btnToggle = findViewById(R.id.btnToggle)
+        btnBrowser = findViewById(R.id.btnBrowser)
+        bottomBar = findViewById(R.id.bottomBar)
+        scrollView = findViewById(R.id.scrollView)
+        editPane = findViewById(R.id.editPane)
+        previewPane = findViewById(R.id.previewPane)
         taxonomy = TaxonomyStore.load(this)
         chipRenderers.add(
             bindChipInput(
@@ -108,9 +131,11 @@ class MainActivity : Activity() {
         findViewById<TextView>(R.id.btnSettings).visibility = if (editing) View.GONE else View.VISIBLE
 
         findViewById<TextView>(R.id.btnBack).setOnClickListener { confirmExit() }
-        findViewById<TextView>(R.id.btnSettings).setOnClickListener {
+        btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
+        btnToggle.setOnClickListener { toggleMode() }
+        btnBrowser.setOnClickListener { openInBrowser() }
         btnPublish.setOnClickListener { doSave() }
 
         btnPublish.text = if (editing) "保存" else "发布"
@@ -188,6 +213,7 @@ class MainActivity : Activity() {
         setEditable(true)
         setBusy(false, null)
         snapshot = signature()
+        if (!source.draft.draft) enterPreview()
     }
 
     private fun onLoadFailed(error: String) {
@@ -303,6 +329,79 @@ class MainActivity : Activity() {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("文章链接", url))
         showMessage("链接已复制", false)
+    }
+
+    // ---------- 结构预览 / 浏览器兜底 ----------
+
+    private fun toggleMode() {
+        if (!loaded) {
+            showMessage("内容还没读取完成，请稍候", true)
+            return
+        }
+        if (previewing) leavePreview() else enterPreview()
+    }
+
+    /** 预览渲染的是当前缓冲区，不是远端文件；进来前记下编辑区的滚动位置与光标。 */
+    private fun enterPreview() {
+        bodySelection = etBody.selectionStart.coerceAtLeast(0)
+        editScrollY = scrollView.scrollY
+        MarkdownPreview.render(
+            previewPane,
+            etBody.text.toString(),
+            resources.displayMetrics.density
+        ) { url -> openExternal(url) }
+
+        previewing = true
+        editPane.visibility = View.GONE
+        previewPane.visibility = View.VISIBLE
+        bottomBar.visibility = View.GONE
+        btnSettings.visibility = View.GONE
+        btnToggle.text = "编辑"
+        btnBrowser.visibility = if (currentUrl().isNotEmpty()) View.VISIBLE else View.GONE
+        tvStatus.visibility = View.GONE
+        scrollView.scrollTo(0, previewScrollY)
+    }
+
+    private fun leavePreview() {
+        previewScrollY = scrollView.scrollY
+        previewing = false
+        previewPane.visibility = View.GONE
+        editPane.visibility = View.VISIBLE
+        bottomBar.visibility = View.VISIBLE
+        if (!editing) btnSettings.visibility = View.VISIBLE
+        btnToggle.text = "预览"
+        btnBrowser.visibility = View.GONE
+        scrollView.scrollTo(0, editScrollY)
+        etBody.setSelection(bodySelection.coerceIn(0, etBody.text.length))
+    }
+
+    /** 线上地址：草稿没有线上页面，未配站点地址时也没有。 */
+    private fun currentUrl(): String {
+        if (cbDraft.isChecked) return ""
+        val slug = if (etSlug.text.toString().isBlank()) {
+            remotePath?.substringAfterLast('/')?.removeSuffix(".md") ?: ""
+        } else {
+            SshPublisher.resolveSlug(etSlug.text.toString())
+        }
+        if (slug.isEmpty()) return ""
+        return SshPublisher.buildUrl(ConfigStore.load(this), slug, false)
+    }
+
+    private fun openInBrowser() {
+        val url = currentUrl()
+        if (url.isEmpty()) {
+            showMessage("这篇还没有线上地址（草稿或未配置站点地址）", true)
+            return
+        }
+        openExternal(url)
+    }
+
+    private fun openExternal(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (e: Exception) {
+            showMessage("没有可用的浏览器：${e.message ?: e.javaClass.simpleName}", true)
+        }
     }
 
     // ---------- UI 状态 ----------
