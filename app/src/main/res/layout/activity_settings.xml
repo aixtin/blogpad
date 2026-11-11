@@ -2,24 +2,35 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F7F7F8"
+    android:background="@color/bg"
     android:orientation="vertical">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:background="#1A1A1E"
+        android:background="@color/surface"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="18dp"
+        android:paddingStart="4dp"
         android:paddingEnd="8dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="48dp"
+            android:layout_height="match_parent"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/cd_back"
+            android:padding="12dp"
+            android:src="@drawable/ic_back"
+            android:tint="@color/text_primary" />
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="连接与站点"
-            android:textColor="#FFFFFF"
+            android:paddingStart="12dp"
+            android:text="设置"
+            android:textColor="@color/text_primary"
             android:textSize="17sp"
             android:textStyle="bold" />
 
@@ -32,272 +43,474 @@
             android:paddingStart="14dp"
             android:paddingEnd="14dp"
             android:text="保存"
-            android:textColor="#6FA0FF"
+            android:textColor="@color/brand"
             android:textSize="15sp"
             android:textStyle="bold" />
     </LinearLayout>
 
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/border" />
+
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:fillViewport="true">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="14dp">
+            android:padding="16dp">
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingBottom="6dp"
-                android:text="SSH 连接"
-                android:textColor="#1A1A1E"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
-            <EditText
-                android:id="@+id/etHost"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="#FFFFFF"
-                android:hint="主机地址（IP 或域名）"
-                android:inputType="textUri"
-                android:padding="12dp"
-                android:textColor="#1A1A1E"
-                android:textColorHint="#9AA0A8"
-                android:textSize="14sp" />
-
+            <!-- SSH 连接 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="SSH 连接"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="文章通过 SFTP 上传到服务器"
+                    android:textColor="@color/text_hint"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="主机地址"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
 
                 <EditText
-                    android:id="@+id/etPort"
-                    android:layout_width="0dp"
+                    android:id="@+id/etHost"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:background="#FFFFFF"
-                    android:hint="端口"
-                    android:inputType="number"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_field"
+                    android:hint="IP 或域名"
+                    android:inputType="textUri"
                     android:padding="12dp"
-                    android:text="22"
-                    android:textColor="#1A1A1E"
-                    android:textColorHint="#9AA0A8"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_hint"
                     android:textSize="14sp" />
 
-                <EditText
-                    android:id="@+id/etUser"
-                    android:layout_width="0dp"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:layout_weight="2"
-                    android:background="#FFFFFF"
-                    android:hint="用户名"
+                    android:layout_marginTop="10dp"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="端口"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/etPort"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:background="@drawable/bg_field"
+                            android:hint="22"
+                            android:inputType="number"
+                            android:maxLength="5"
+                            android:padding="12dp"
+                            android:text="22"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_hint"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_weight="2"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="用户名"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/etUser"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:background="@drawable/bg_field"
+                            android:hint="root"
+                            android:inputType="text"
+                            android:padding="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_hint"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="登录方式"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <LinearLayout
+                    android:id="@+id/rgAuth"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_segmented"
+                    android:orientation="horizontal"
+                    android:padding="4dp">
+
+                    <TextView
+                        android:id="@+id/rbKey"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_segment_item"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:text="私钥"
+                        android:textColor="@color/segment_text"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/rbPassword"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_segment_item"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:text="密码"
+                        android:textColor="@color/segment_text"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/groupKey"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:text="OpenSSH 私钥"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <EditText
+                        android:id="@+id/etPrivateKey"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/bg_field"
+                        android:gravity="top|start"
+                        android:hint="粘贴以 BEGIN 开头、END 结尾的私钥全文"
+                        android:inputType="textMultiLine|textNoSuggestions"
+                        android:minLines="4"
+                        android:padding="12dp"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_hint"
+                        android:textSize="12sp"
+                        android:typeface="monospace" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnImportKey"
+                            android:layout_width="0dp"
+                            android:layout_height="42dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_outline_button"
+                            android:text="从文件导入"
+                            android:textAllCaps="false"
+                            android:textColor="@color/brand"
+                            android:textSize="13sp" />
+
+                        <Button
+                            android:id="@+id/btnClearKey"
+                            android:layout_width="wrap_content"
+                            android:layout_height="42dp"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/bg_outline_button"
+                            android:minWidth="80dp"
+                            android:text="清空"
+                            android:textAllCaps="false"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:text="私钥口令"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <EditText
+                        android:id="@+id/etPassphrase"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/bg_field"
+                        android:hint="私钥无密码可留空"
+                        android:inputType="textPassword"
+                        android:padding="12dp"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_hint"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/groupPassword"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:text="登录密码"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <EditText
+                        android:id="@+id/etPassword"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/bg_field"
+                        android:hint="服务器登录密码"
+                        android:inputType="textPassword"
+                        android:padding="12dp"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_hint"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="16dp"
+                    android:background="@color/border" />
+
+                <Button
+                    android:id="@+id/btnTest"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_outline_brand"
+                    android:text="测试连接"
+                    android:textAllCaps="false"
+                    android:textColor="@color/brand"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/tvTestStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="2dp"
+                    android:minHeight="20dp"
+                    android:text=""
+                    android:textColor="@color/text_secondary"
+                    android:textIsSelectable="true"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- Hugo 站点 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Hugo 站点"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="发布时在站点根目录执行构建"
+                    android:textColor="@color/text_hint"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="站点根目录"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/etSiteRoot"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_field"
+                    android:hint="/var/www/example.com"
                     android:inputType="text"
                     android:padding="12dp"
-                    android:textColor="#1A1A1E"
-                    android:textColorHint="#9AA0A8"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_hint"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="文章目录"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/etPostDir"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_field"
+                    android:hint="content/post"
+                    android:inputType="text"
+                    android:padding="12dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_hint"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="构建命令"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/etBuildCmd"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_field"
+                    android:hint="hugo --gc --minify"
+                    android:inputType="text"
+                    android:padding="12dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_hint"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="站点地址"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/etSiteUrl"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_field"
+                    android:hint="https://example.com"
+                    android:inputType="textUri"
+                    android:padding="12dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_hint"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="文章链接模板"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/etLinkTemplate"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_field"
+                    android:hint="https://example.com/archives/{slug}/"
+                    android:inputType="textUri"
+                    android:padding="12dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_hint"
                     android:textSize="14sp" />
             </LinearLayout>
 
-            <RadioGroup
-                android:id="@+id/rgAuth"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="#FFFFFF"
-                android:orientation="horizontal"
-                android:padding="8dp">
-
-                <RadioButton
-                    android:id="@+id/rbKey"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:checked="true"
-                    android:text="私钥"
-                    android:textColor="#1A1A1E"
-                    android:textSize="14sp" />
-
-                <RadioButton
-                    android:id="@+id/rbPassword"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="密码"
-                    android:textColor="#1A1A1E"
-                    android:textSize="14sp" />
-            </RadioGroup>
-
-            <EditText
-                android:id="@+id/etPrivateKey"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="#FFFFFF"
-                android:gravity="top|start"
-                android:hint="粘贴 OpenSSH 私钥全文（文本以 BEGIN 开头、END 结尾）"
-                android:inputType="textMultiLine|textNoSuggestions"
-                android:minLines="4"
-                android:padding="12dp"
-                android:textColor="#1A1A1E"
-                android:textColorHint="#9AA0A8"
-                android:textSize="12sp"
-                android:typeface="monospace" />
-
+            <!-- 安全说明 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_muted_block"
+                android:orientation="vertical"
+                android:padding="14dp">
 
-                <Button
-                    android:id="@+id/btnImportKey"
-                    android:layout_width="0dp"
+                <TextView
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="从文件导入私钥"
-                    android:textSize="13sp" />
-
-                <Button
-                    android:id="@+id/btnClearKey"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:text="清空"
-                    android:textSize="13sp" />
+                    android:lineSpacingExtra="3dp"
+                    android:text="私钥口令与密码经 Android Keystore 加密后保存在本机。首次连接会显示服务器指纹，确认后记住；更换主机或端口后需要重新确认。"
+                    android:textColor="@color/text_hint"
+                    android:textSize="12sp" />
             </LinearLayout>
 
-            <EditText
-                android:id="@+id/etPassword"
+            <Space
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="#FFFFFF"
-                android:hint="登录密码"
-                android:inputType="textPassword"
-                android:padding="12dp"
-                android:textColor="#1A1A1E"
-                android:textColorHint="#9AA0A8"
-                android:textSize="14sp"
-                android:visibility="gone" />
-
-            <EditText
-                android:id="@+id/etPassphrase"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="#FFFFFF"
-                android:hint="私钥口令（私钥无密码可留空）"
-                android:inputType="textPassword"
-                android:padding="12dp"
-                android:textColor="#1A1A1E"
-                android:textColorHint="#9AA0A8"
-                android:textSize="14sp" />
-
-            <Button
-                android:id="@+id/btnTest"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="测试连接"
-                android:textSize="14sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="18dp"
-                android:paddingBottom="6dp"
-                android:text="Hugo 站点"
-                android:textColor="#1A1A1E"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
-            <EditText
-                android:id="@+id/etSiteRoot"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="#FFFFFF"
-                android:hint="站点根目录，如 /var/www/example.com"
-                android:inputType="text"
-                android:padding="12dp"
-                android:textColor="#1A1A1E"
-                android:textColorHint="#9AA0A8"
-                android:textSize="14sp" />
-
-            <EditText
-                android:id="@+id/etPostDir"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="#FFFFFF"
-                android:hint="文章目录，如 content/post"
-                android:inputType="text"
-                android:padding="12dp"
-                android:textColor="#1A1A1E"
-                android:textColorHint="#9AA0A8"
-                android:textSize="14sp" />
-
-            <EditText
-                android:id="@+id/etBuildCmd"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="#FFFFFF"
-                android:hint="构建命令，如 hugo --gc --minify"
-                android:inputType="text"
-                android:padding="12dp"
-                android:textColor="#1A1A1E"
-                android:textColorHint="#9AA0A8"
-                android:textSize="14sp" />
-
-            <EditText
-                android:id="@+id/etSiteUrl"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="#FFFFFF"
-                android:hint="站点地址，如 https://example.com"
-                android:inputType="textUri"
-                android:padding="12dp"
-                android:textColor="#1A1A1E"
-                android:textColorHint="#9AA0A8"
-                android:textSize="14sp" />
-
-            <EditText
-                android:id="@+id/etLinkTemplate"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="#FFFFFF"
-                android:hint="文章链接模板，如 https://example.com/archives/{slug}/"
-                android:inputType="textUri"
-                android:padding="12dp"
-                android:textColor="#1A1A1E"
-                android:textColorHint="#9AA0A8"
-                android:textSize="14sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="16dp"
-                android:text="说明：私钥口令与密码经由 Android Keystore 加密后保存在本机。首次连接会显示服务器指纹，确认后记住。"
-                android:textColor="#9AA0A8"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tvTestStatus"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="14dp"
-                android:paddingBottom="24dp"
-                android:text=""
-                android:textColor="#2F6FED"
-                android:textIsSelectable="true"
-                android:textSize="13sp" />
+                android:layout_height="16dp" />
         </LinearLayout>
     </ScrollView>
 

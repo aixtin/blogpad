@@ -32,8 +32,8 @@ android {
         applicationId = "io.github.aixtin.blogpad"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.5.0"
+        versionCode = 4
+        versionName = "1.5.1"
     }
 
     signingConfigs {
@@ -84,6 +84,7 @@ android {
 }
 
 dependencies {
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     implementation("com.github.mwiede:jsch:0.2.26")
     implementation("org.bouncycastle:bcprov-jdk18on:1.82")
 }

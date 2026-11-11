@@ -6,7 +6,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -51,9 +50,13 @@ class MainActivity : Activity() {
     private lateinit var layoutCategoryChips: LinearLayout
     private lateinit var layoutTagChips: LinearLayout
 
-    private lateinit var btnSettings: TextView
+    private lateinit var tvMetaSummary: TextView
+    private lateinit var metaContainer: View
+    private var metaExpanded = false
+
+    private lateinit var btnSettings: View
     private lateinit var btnToggle: TextView
-    private lateinit var btnBrowser: TextView
+    private lateinit var btnBrowser: View
     private lateinit var bottomBar: View
     private lateinit var scrollView: ScrollView
     private lateinit var editPane: View
@@ -99,6 +102,8 @@ class MainActivity : Activity() {
         rowTagChips = findViewById(R.id.rowTagChips)
         layoutCategoryChips = findViewById(R.id.layoutCategoryChips)
         layoutTagChips = findViewById(R.id.layoutTagChips)
+        tvMetaSummary = findViewById(R.id.tvMetaSummary)
+        metaContainer = findViewById(R.id.metaContainer)
         btnSettings = findViewById(R.id.btnSettings)
         btnToggle = findViewById(R.id.btnToggle)
         btnBrowser = findViewById(R.id.btnBrowser)
@@ -127,16 +132,29 @@ class MainActivity : Activity() {
         )
 
         findViewById<TextView>(R.id.tvHeader).text = if (editing) "编辑文章" else "新建文章"
-        findViewById<TextView>(R.id.btnBack).visibility = if (editing) View.VISIBLE else View.GONE
-        findViewById<TextView>(R.id.btnSettings).visibility = if (editing) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.btnBack).visibility = View.VISIBLE
+        btnSettings.visibility = if (editing) View.GONE else View.VISIBLE
 
-        findViewById<TextView>(R.id.btnBack).setOnClickListener { confirmExit() }
+        findViewById<View>(R.id.btnBack).setOnClickListener { confirmExit() }
         btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
         btnToggle.setOnClickListener { toggleMode() }
         btnBrowser.setOnClickListener { openInBrowser() }
         btnPublish.setOnClickListener { doSave() }
+
+        tvMetaSummary.setOnClickListener { toggleMeta() }
+        val metaWatcher = object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) {
+                if (!metaExpanded) updateMetaSummary()
+            }
+        }
+        etSlug.addTextChangedListener(metaWatcher)
+        etCategories.addTextChangedListener(metaWatcher)
+        etTags.addTextChangedListener(metaWatcher)
+        updateMetaSummary()
 
         btnPublish.text = if (editing) "保存" else "发布"
 
@@ -176,6 +194,32 @@ class MainActivity : Activity() {
         }
     }
 
+    // ---------- 属性折叠 ----------
+
+    private fun toggleMeta() {
+        metaExpanded = !metaExpanded
+        metaContainer.visibility = if (metaExpanded) View.VISIBLE else View.GONE
+        updateMetaSummary()
+    }
+
+    /** 收起时用当前值做摘要，避免为了看一眼 slug 展开整块表单 */
+    private fun updateMetaSummary() {
+        tvMetaSummary.setCompoundDrawablesRelativeWithIntrinsicBounds(
+            0,
+            0,
+            if (metaExpanded) R.drawable.ic_chevron_up else R.drawable.ic_chevron_down,
+            0
+        )
+        if (metaExpanded) {
+            tvMetaSummary.text = "收起属性"
+            return
+        }
+        val slug = etSlug.text.toString().trim().ifEmpty { "slug 自动生成" }
+        val categories = splitValues(etCategories.text.toString()).joinToString("/").ifEmpty { "未分类" }
+        val tags = splitValues(etTags.text.toString()).joinToString("、").ifEmpty { "无标签" }
+        tvMetaSummary.text = "$slug  ·  $categories  ·  $tags"
+    }
+
     // ---------- 编辑模式：读取远端 ----------
 
     private fun loadRemote() {
@@ -213,6 +257,7 @@ class MainActivity : Activity() {
         setEditable(true)
         setBusy(false, null)
         snapshot = signature()
+        updateMetaSummary()
         if (!source.draft.draft) enterPreview()
     }
 
@@ -431,7 +476,7 @@ class MainActivity : Activity() {
 
     private fun showMessage(message: String, isError: Boolean) {
         tvStatus.visibility = View.VISIBLE
-        tvStatus.setTextColor(Color.parseColor(if (isError) "#D93025" else "#1E7B34"))
+        tvStatus.setTextColor(getColor(if (isError) R.color.danger else R.color.success))
         tvStatus.text = message
     }
 

@@ -4,9 +4,9 @@
     android:layout_height="wrap_content"
     android:background="?android:attr/selectableItemBackground"
     android:orientation="vertical"
-    android:paddingStart="18dp"
+    android:paddingStart="16dp"
     android:paddingTop="14dp"
-    android:paddingEnd="18dp"
+    android:paddingEnd="16dp"
     android:paddingBottom="14dp">
 
     <TextView
@@ -16,30 +16,43 @@
         android:ellipsize="end"
         android:maxLines="2"
         android:text=""
-        android:textColor="#1A1A1E"
+        android:textColor="@color/text_primary"
         android:textSize="16sp"
         android:textStyle="bold" />
 
-    <TextView
-        android:id="@+id/tvItemMeta"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:text=""
-        android:textColor="#6B7280"
-        android:textSize="12sp" />
+        android:layout_marginTop="6dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/tvItemDate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvItemStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text=""
+            android:textSize="12sp" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/tvItemTags"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
+        android:layout_marginTop="4dp"
         android:ellipsize="end"
         android:maxLines="1"
         android:text=""
-        android:textColor="#2F6FED"
+        android:textColor="@color/brand_text"
         android:textSize="12sp"
         android:visibility="gone" />
 

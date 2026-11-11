@@ -3,16 +3,15 @@ package io.github.aixtin.blogpad
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
-import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
-import android.widget.RadioButton
-import android.widget.RadioGroup
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import java.util.concurrent.ExecutorService
@@ -23,9 +22,10 @@ class SettingsActivity : Activity() {
     private lateinit var etHost: EditText
     private lateinit var etPort: EditText
     private lateinit var etUser: EditText
-    private lateinit var rgAuth: RadioGroup
-    private lateinit var rbKey: RadioButton
-    private lateinit var rbPassword: RadioButton
+    private lateinit var rbKey: TextView
+    private lateinit var rbPassword: TextView
+    private lateinit var groupKey: LinearLayout
+    private lateinit var groupPassword: LinearLayout
     private lateinit var etPrivateKey: EditText
     private lateinit var etPassphrase: EditText
     private lateinit var etPassword: EditText
@@ -52,9 +52,10 @@ class SettingsActivity : Activity() {
         etHost = findViewById(R.id.etHost)
         etPort = findViewById(R.id.etPort)
         etUser = findViewById(R.id.etUser)
-        rgAuth = findViewById(R.id.rgAuth)
         rbKey = findViewById(R.id.rbKey)
         rbPassword = findViewById(R.id.rbPassword)
+        groupKey = findViewById(R.id.groupKey)
+        groupPassword = findViewById(R.id.groupPassword)
         etPrivateKey = findViewById(R.id.etPrivateKey)
         etPassphrase = findViewById(R.id.etPassphrase)
         etPassword = findViewById(R.id.etPassword)
@@ -69,12 +70,14 @@ class SettingsActivity : Activity() {
         config = ConfigStore.load(this)
         bindConfig(config)
 
+        findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<TextView>(R.id.btnSave).setOnClickListener { saveAndFinish() }
         findViewById<Button>(R.id.btnImportKey).setOnClickListener { pickKeyFile() }
         findViewById<Button>(R.id.btnClearKey).setOnClickListener { etPrivateKey.setText("") }
         btnTest.setOnClickListener { runTest() }
 
-        rgAuth.setOnCheckedChangeListener { _, _ -> applyAuthMode() }
+        rbKey.setOnClickListener { selectAuth(true) }
+        rbPassword.setOnClickListener { selectAuth(false) }
         applyAuthMode()
     }
 
@@ -87,7 +90,7 @@ class SettingsActivity : Activity() {
         etHost.setText(c.host)
         etPort.setText(c.port.toString())
         etUser.setText(c.user)
-        if (c.authType == "password") rbPassword.isChecked = true else rbKey.isChecked = true
+        if (c.authType == "password") selectAuth(false) else selectAuth(true)
         etPrivateKey.setText(c.privateKey)
         etPassphrase.setText(c.passphrase)
         etPassword.setText(c.password)
@@ -104,7 +107,7 @@ class SettingsActivity : Activity() {
             host = etHost.text.toString().trim(),
             port = port,
             user = etUser.text.toString().trim(),
-            authType = if (rbPassword.isChecked) "password" else "key",
+            authType = if (rbPassword.isSelected) "password" else "key",
             privateKey = etPrivateKey.text.toString().trim(),
             passphrase = etPassphrase.text.toString(),
             password = etPassword.text.toString(),
@@ -136,11 +139,16 @@ class SettingsActivity : Activity() {
         finish()
     }
 
+    private fun selectAuth(useKey: Boolean) {
+        rbKey.isSelected = useKey
+        rbPassword.isSelected = !useKey
+        applyAuthMode()
+    }
+
     private fun applyAuthMode() {
-        val useKey = rbKey.isChecked
-        etPrivateKey.visibility = if (useKey) View.VISIBLE else View.GONE
-        etPassphrase.visibility = if (useKey) View.VISIBLE else View.GONE
-        etPassword.visibility = if (useKey) View.GONE else View.VISIBLE
+        val useKey = rbKey.isSelected
+        groupKey.visibility = if (useKey) View.VISIBLE else View.GONE
+        groupPassword.visibility = if (useKey) View.GONE else View.VISIBLE
     }
 
     private fun pickKeyFile() {
@@ -178,26 +186,28 @@ class SettingsActivity : Activity() {
     private fun runTest() {
         val target = collectConfig()
         target.connectionReady()?.let {
-            tvTestStatus.setTextColor(Color.parseColor("#D93025"))
+            tvTestStatus.setTextColor(getColor(R.color.danger))
             tvTestStatus.text = it
             return
         }
         btnTest.isEnabled = false
-        tvTestStatus.setTextColor(Color.parseColor("#6B7280"))
+        btnTest.text = "正在连接…"
+        tvTestStatus.setTextColor(getColor(R.color.text_secondary))
         tvTestStatus.text = "正在连接…"
 
         worker.execute {
             val result = SshPublisher.test(target)
             mainHandler.post {
                 btnTest.isEnabled = true
+                btnTest.text = "测试连接"
                 val (ok, message, fingerprint) = result
                 if (fingerprint != null) {
                     askTrust(target, fingerprint)
                 } else if (ok) {
-                    tvTestStatus.setTextColor(Color.parseColor("#1E7B34"))
+                    tvTestStatus.setTextColor(getColor(R.color.success))
                     tvTestStatus.text = message
                 } else {
-                    tvTestStatus.setTextColor(Color.parseColor("#D93025"))
+                    tvTestStatus.setTextColor(getColor(R.color.danger))
                     tvTestStatus.text = message
                 }
             }
@@ -205,23 +215,40 @@ class SettingsActivity : Activity() {
     }
 
     private fun askTrust(target: Config, fingerprint: String) {
-        tvTestStatus.setTextColor(Color.parseColor("#6B7280"))
+        tvTestStatus.setTextColor(getColor(R.color.text_secondary))
         tvTestStatus.text = "等待确认主机指纹"
-        AlertDialog.Builder(this)
-            .setTitle("确认服务器指纹")
-            .setMessage("SHA256 指纹：\n$fingerprint\n\n只有确认这是你自己的服务器时才继续。")
-            .setPositiveButton("信任并保存") { _, _ ->
-                val updated = collectConfig()
-                updated.hostFingerprint = fingerprint
-                config = updated
-                ConfigStore.save(this, updated)
-                Toast.makeText(this, "已信任，正在重新连接…", Toast.LENGTH_SHORT).show()
-                runTest()
-            }
-            .setNegativeButton("取消") { _, _ ->
-                tvTestStatus.setTextColor(Color.parseColor("#D93025"))
-                tvTestStatus.text = "已取消，未信任该主机"
-            }
-            .show()
+
+        val content = layoutInflater.inflate(R.layout.dialog_confirm_host, null)
+        content.findViewById<TextView>(R.id.tvHost).text =
+            "${target.user}@${target.host}:${target.port}"
+        content.findViewById<TextView>(R.id.tvFingerprint).text = fingerprint
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(content)
+            .create()
+
+        content.findViewById<TextView>(R.id.btnTrust).setOnClickListener {
+            dialog.dismiss()
+            val updated = collectConfig()
+            updated.hostFingerprint = fingerprint
+            config = updated
+            ConfigStore.save(this, updated)
+            Toast.makeText(this, "已信任，正在重新连接…", Toast.LENGTH_SHORT).show()
+            runTest()
+        }
+        content.findViewById<TextView>(R.id.btnCancelTrust).setOnClickListener {
+            dialog.dismiss()
+            tvTestStatus.setTextColor(getColor(R.color.danger))
+            tvTestStatus.text = "已取消，未信任该主机"
+        }
+
+        dialog.show()
+        dialog.window?.apply {
+            setBackgroundDrawableResource(R.drawable.bg_dialog)
+            setLayout(
+                (resources.displayMetrics.widthPixels * 0.88f).toInt(),
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
     }
 }

@@ -9,11 +9,13 @@ database, no third-party service — just SSH and a Git-based site.
 ## Features
 
 - **Post list as the entry screen** — the home screen is a projection of `content/post` on the
-  server: title, date, draft badge, and tags. Pull to refresh, tap a row to edit.
+  server: title, date, draft status, and tags. Pull to refresh, tap a row to edit, expand search on
+  demand, and create a post from the fixed bottom-right button.
 - **Edit existing posts** — the remote `.md` is loaded back into the form and saved in place; a
   changed slug renames the remote file and removes the old one; front matter keys the app does not
   own are preserved verbatim.
-- **Write and publish from the phone** — title, slug, categories, tags, body, and a draft toggle.
+- **Write and publish from the phone** — title, slug, categories, tags, body, and a draft toggle;
+  slug, categories and tags stay collapsed behind a one-line summary until tapped.
 - **Markdown with Hugo front matter** — generated automatically (`title`, `date`, `draft`, `slug`,
   `categories`, `tags`), so the file drops straight into a Hugo site.
 - **SSH transport** — SFTP upload plus remote command execution over a single session.
@@ -129,6 +131,7 @@ app/src/main/java/io/github/aixtin/blogpad/
 
 | Library | Version | License |
 |---------|---------|---------|
+| [AndroidX SwipeRefreshLayout](https://developer.android.com/jetpack/androidx/releases/swiperefreshlayout) | 1.1.0 | Apache-2.0 |
 | [JSch (mwiede fork)](https://github.com/mwiede/jsch) | 0.2.26 | BSD-style |
 | [Bouncy Castle](https://www.bouncycastle.org/) (`bcprov-jdk18on`) | 1.82 | MIT-style |
 
@@ -137,7 +140,8 @@ app/src/main/java/io/github/aixtin/blogpad/
 | Version | Date | versionCode | Notes |
 |---------|------|-------------|-------|
 | 1.0.0 | 2026-11-09 | 1 | First release: single-screen editor with write, publish, draft, and rollback |
-| 1.5.0-dev | — | 2 | In development: post list, editing existing posts, categories and tags, housekeeping, structural preview; shipped once when complete |
+| 1.5.0 | 2026-11-10 | 3 | Post list, editing existing posts, categories and tags, housekeeping, structural preview |
+| 1.5.1 | 2026-11-11 | 4 | Interaction rework: icon top bar, on-demand search, new-post FAB, pull to refresh; rows show date + status; collapsible post metadata and a single bottom action; card-based settings, segmented auth, custom fingerprint dialog; tapping the title opens About, which checks GitHub Releases and announces new versions with a Toast |
 
 The release procedure lives in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md).
 

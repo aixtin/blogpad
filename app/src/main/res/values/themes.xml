@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:colorPrimary">#FF1A1A1E</item>
-        <item name="android:colorPrimaryDark">#FF1A1A1E</item>
-        <item name="android:colorAccent">#FF2F6FED</item>
-        <item name="android:statusBarColor">#FF1A1A1E</item>
-        <item name="android:navigationBarColor">#FFF7F7F8</item>
-        <item name="android:windowBackground">#FFF7F7F8</item>
+        <item name="android:colorPrimary">@color/brand</item>
+        <item name="android:colorPrimaryDark">@color/surface</item>
+        <item name="android:colorAccent">@color/brand</item>
+        <item name="android:statusBarColor">@color/surface</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/text_primary</item>
+        <item name="android:windowBackground">@color/bg</item>
     </style>
 </resources>

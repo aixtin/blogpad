@@ -2,8 +2,7 @@
 
 ## Release policy
 
-Exactly two versions are published: **v1.0.0 (released)** and **v1.5.0 (released, first complete
-feature set)**.
+Published releases: **v1.0.0**, **v1.5.0**, and **v1.5.1**.
 
 v1.1 through v1.4 are internal milestones, not releases. Each milestone must compile and install on
 a real device for self-testing, but it gets no tag, no GitHub Release, and no download-point update.
@@ -13,10 +12,10 @@ The reasons:
   distribution value of a release is zero.
 - A single maintainer does the work, and cutting a release is a fixed cost (build, rename, checksum,
   notes, syncing the download point). Semi-finished work should not pay that cost.
-- Nothing between v1.0.0 and v1.5.0 is a live defect that users need urgently.
+- Nothing between v1.1 and v1.4 is a live defect that users need urgently.
 
 Releases are counted in closed feature sets, not in commits or in version-number slots. During
-development `versionName` carries the target version directly (e.g. `1.5.0-dev`); `versionCode` is
+development `versionName` carries the target version directly (e.g. `1.6.0-dev`); `versionCode` is
 bumped only when a release actually ships.
 
 ## Guiding principles
@@ -43,8 +42,14 @@ bumped only when a release actually ships.
 | v1.3 | Category and tag discovery: scan existing front matter, offer selectable chips, allow new values | Done | Taxonomy cached in SharedPreferences, rewritten on every list refresh; chips are shortcuts only |
 | v1.4 | Housekeeping: delete post, draft → published, search, offline list cache | Done | Delete and draft toggle both rebuild and roll back on failure; search filters title/slug/tags/categories in memory; last successful listing is cached for offline viewing, and writes stay blocked while offline |
 | v1.5 | Preview: structural read-only render, toggle in the top bar, cursor position preserved, "open in browser" escape hatch | Released | Renders headings, lists, quotes, fenced code, tables, images and links; the toggle keeps scroll offset and cursor; the browser button shows only when the post has a live URL |
+| v1.5.1 | Interaction cleanup: icon top bar, on-demand search, new-post FAB, pull to refresh; rows show date + status; collapsible metadata and a single bottom action; card-based settings, segmented auth, custom fingerprint dialog; title opens About with GitHub Releases update check and a Toast notice | Released | Publish results and long-press actions still use the existing dialogs; a bottom sheet and dark mode come later |
 
-## Interaction rules for editing and preview (v1.5)
+## Interaction rules for editing and preview (v1.5.1)
+
+The post-list top bar keeps only search and settings, creation lives in the bottom-right FAB, and
+refresh happens only through pull-to-refresh. The editor collapses slug, categories and tags behind
+a one-line summary that starts closed; the bottom bar keeps just the draft toggle and one primary
+action. Expansion state is not persisted and resets when the screen closes.
 
 Default mode depends on the state of the post, not on a global preference:
 

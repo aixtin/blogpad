@@ -3,7 +3,6 @@ package io.github.aixtin.blogpad
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
-import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -12,11 +11,15 @@ import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -33,6 +36,12 @@ class PostListActivity : Activity() {
     private lateinit var tvEmpty: TextView
     private lateinit var tvStatus: TextView
     private lateinit var etSearch: EditText
+    private lateinit var swipeRefresh: SwipeRefreshLayout
+    private lateinit var searchInline: View
+    private lateinit var tvTitle: View
+    private lateinit var btnSearch: ImageButton
+    private lateinit var btnClearSearch: View
+    private var searchOpen = false
 
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
     private val handler = Handler(Looper.getMainLooper())
@@ -58,6 +67,14 @@ class PostListActivity : Activity() {
         tvEmpty = findViewById(R.id.tvEmpty)
         tvStatus = findViewById(R.id.tvStatus)
         etSearch = findViewById(R.id.etSearch)
+        swipeRefresh = findViewById(R.id.swipeRefresh)
+        searchInline = findViewById(R.id.searchInline)
+        tvTitle = findViewById(R.id.tvTitle)
+        btnSearch = findViewById(R.id.btnSearch)
+        btnClearSearch = findViewById(R.id.btnClearSearch)
+
+        swipeRefresh.setColorSchemeColors(getColor(R.color.brand))
+        swipeRefresh.setOnRefreshListener { load() }
 
         listView.adapter = adapter
         listView.setOnItemClickListener { _, _, position, _ ->
@@ -74,16 +91,107 @@ class PostListActivity : Activity() {
             override fun afterTextChanged(s: Editable?) = applyFilter()
         })
 
-        findViewById<TextView>(R.id.btnNew).setOnClickListener { openEditor(null) }
-        findViewById<TextView>(R.id.btnRefresh).setOnClickListener { load() }
-        findViewById<TextView>(R.id.btnSettings).setOnClickListener {
+        findViewById<View>(R.id.btnNew).setOnClickListener { openEditor(null) }
+        btnSearch.setOnClickListener { if (searchOpen) closeSearch() else openSearch() }
+        findViewById<View>(R.id.btnClearSearch).setOnClickListener { etSearch.setText("") }
+        btnClearSearch.visibility = View.INVISIBLE
+        findViewById<View>(R.id.btnSettings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
+
+        // 标题即入口：点「BlogPad」进关于页
+        tvTitle.setOnClickListener {
+            startActivity(Intent(this, AboutActivity::class.java))
+        }
+
+        etSearch.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
+                closeSearch()
+                true
+            } else {
+                false
+            }
+        }
+
+        // 每天最多查一次，有新版用 Toast 轻提示一句，几秒后自动消失
+        UpdateChecker.autoCheck(this) { version ->
+            Toast.makeText(
+                this,
+                "检测到新版本 $version，请到关于页更新",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    // ---------- 搜索：在顶栏原地向左展开 ----------
+
+    private fun openSearch() {
+        if (searchOpen) return
+        searchOpen = true
+        btnSearch.setImageResource(R.drawable.ic_close)
+        tvTitle.visibility = View.GONE
+
+        searchInline.animate().cancel()
+        searchInline.alpha = 0f
+        searchInline.visibility = View.VISIBLE
+        searchInline.post {
+            searchInline.translationX = searchInline.width.toFloat()
+            searchInline.animate()
+                .translationX(0f)
+                .alpha(1f)
+                .setDuration(180)
+                .start()
+            etSearch.requestFocus()
+            etSearch.setSelection(etSearch.text.length)
+            getSystemService(InputMethodManager::class.java)
+                ?.showSoftInput(etSearch, InputMethodManager.SHOW_IMPLICIT)
+        }
+        updateSearchTint()
+    }
+
+    private fun closeSearch() {
+        if (!searchOpen) return
+        searchOpen = false
+        getSystemService(InputMethodManager::class.java)
+            ?.hideSoftInputFromWindow(etSearch.windowToken, 0)
+        etSearch.clearFocus()
+        btnSearch.setImageResource(R.drawable.ic_search)
+
+        searchInline.animate().cancel()
+        searchInline.animate()
+            .translationX(searchInline.width.toFloat())
+            .alpha(0f)
+            .setDuration(150)
+            .withEndAction {
+                searchInline.visibility = View.GONE
+                searchInline.translationX = 0f
+                searchInline.alpha = 1f
+            }
+            .start()
+
+        tvTitle.animate().cancel()
+        tvTitle.visibility = View.VISIBLE
+        tvTitle.alpha = 0f
+        tvTitle.animate().alpha(1f).setDuration(180).start()
+        updateSearchTint()
+    }
+
+    /** 收起后如果还在筛选，放大镜保持高亮，避免用户忘记列表不是全量 */
+    private fun updateSearchTint() {
+        val active = searchOpen || etSearch.text.toString().isNotEmpty()
+        btnSearch.setColorFilter(
+            getColor(if (active) R.color.brand else R.color.text_secondary)
+        )
     }
 
     override fun onResume() {
         super.onResume()
         load()
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (searchOpen) closeSearch() else super.onBackPressed()
     }
 
     override fun onDestroy() {
@@ -100,10 +208,14 @@ class PostListActivity : Activity() {
     // ---------- 拉取 ----------
 
     private fun load() {
-        if (loading) return
+        if (loading) {
+            swipeRefresh.isRefreshing = false
+            return
+        }
         val config = ConfigStore.load(this)
         val missing = config.connectionReady() ?: config.siteReady()
         if (missing != null) {
+            swipeRefresh.isRefreshing = false
             allPosts = emptyList()
             offlineStamp = 0L
             lastError = ""
@@ -129,6 +241,7 @@ class PostListActivity : Activity() {
 
     private fun onLoaded(posts: List<PostMeta>) {
         loading = false
+        swipeRefresh.isRefreshing = false
         loadFailed = false
         offlineStamp = 0L
         lastError = ""
@@ -141,6 +254,7 @@ class PostListActivity : Activity() {
 
     private fun onLoadFailed(error: String) {
         loading = false
+        swipeRefresh.isRefreshing = false
         lastError = error
         val cached = PostCacheStore.load(this)
         if (cached != null) {
@@ -160,10 +274,13 @@ class PostListActivity : Activity() {
 
     private fun applyFilter() {
         val query = etSearch.text.toString().trim()
+        // 空输入时清除按钮没有意义，和右侧的收起图标容易混淆，直接藏掉
+        btnClearSearch.visibility = if (query.isEmpty()) View.INVISIBLE else View.VISIBLE
         val filtered = if (query.isEmpty()) allPosts else allPosts.filter { matches(it, query) }
         adapter.setItems(filtered)
         updateEmpty(query)
         updateStatus()
+        updateSearchTint()
     }
 
     private fun matches(post: PostMeta, query: String): Boolean {
@@ -209,10 +326,9 @@ class PostListActivity : Activity() {
     }
 
     private fun showStatus(message: String, isError: Boolean) {
-        tvStatus.visibility = if (message.isBlank()) View.GONE else View.VISIBLE
-        if (message.isBlank()) return
-        tvStatus.setTextColor(Color.parseColor(if (isError) "#D93025" else "#6B7280"))
         tvStatus.text = message
+        if (message.isBlank()) return
+        tvStatus.setTextColor(getColor(if (isError) R.color.danger else R.color.text_secondary))
     }
 
     // ---------- 长按：改状态 / 删除 ----------
@@ -332,22 +448,21 @@ class PostListActivity : Activity() {
             val post = items[position]
 
             view.findViewById<TextView>(R.id.tvItemTitle).text = post.title
+            view.findViewById<TextView>(R.id.tvItemDate).text = post.date
 
-            val meta = StringBuilder()
-            if (post.date.isNotEmpty()) meta.append(post.date).append("  ·  ")
-            meta.append(post.slug)
-            view.findViewById<TextView>(R.id.tvItemMeta).text = meta
+            val status = view.findViewById<TextView>(R.id.tvItemStatus)
+            status.text = if (post.draft) "草稿" else "已发布"
+            status.setTextColor(
+                view.context.getColor(if (post.draft) R.color.warning else R.color.text_secondary)
+            )
 
             val foot = view.findViewById<TextView>(R.id.tvItemTags)
-            val parts = ArrayList<String>()
-            if (post.draft) parts.add("草稿")
-            parts.addAll(post.tags.filter { !(post.draft && it == "草稿") })
-            if (parts.isEmpty()) {
+            val tags = post.tags.filter { !(post.draft && it == "草稿") }
+            if (tags.isEmpty()) {
                 foot.visibility = View.GONE
             } else {
                 foot.visibility = View.VISIBLE
-                foot.text = parts.joinToString("  ·  ")
-                foot.setTextColor(Color.parseColor(if (post.draft) "#D93025" else "#2F6FED"))
+                foot.text = tags.joinToString("  ·  ")
             }
             return view
         }

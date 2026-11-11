@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#F7F7F8</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_muted">#EFEFF2</color>
+
+    <color name="text_primary">#1A1A1E</color>
+    <color name="text_secondary">#6B7280</color>
+    <color name="text_hint">#9AA0A8</color>
+    <color name="border">#E8EAED</color>
+
+    <color name="brand">#2F6FED</color>
+    <color name="brand_soft">#E8F0FE</color>
+    <color name="brand_text">#174EA6</color>
+    <color name="on_brand">#FFFFFF</color>
+
+    <color name="danger">#D93025</color>
+    <color name="success">#1E7B34</color>
+    <color name="warning">#B45309</color>
+</resources>

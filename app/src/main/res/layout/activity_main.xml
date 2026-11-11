@@ -2,29 +2,27 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="#F7F7F8">
+    android:background="@color/bg"
+    android:orientation="vertical">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:background="#1A1A1E"
+        android:background="@color/surface"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="6dp"
-        android:paddingEnd="6dp">
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp">
 
-        <TextView
+        <ImageButton
             android:id="@+id/btnBack"
-            android:layout_width="wrap_content"
+            android:layout_width="48dp"
             android:layout_height="match_parent"
-            android:background="?android:attr/selectableItemBackground"
-            android:gravity="center"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:text="返回"
-            android:textColor="#C9CDD4"
-            android:textSize="15sp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/cd_back"
+            android:padding="12dp"
+            android:src="@drawable/ic_back"
+            android:tint="@color/text_primary"
             android:visibility="gone" />
 
         <TextView
@@ -34,21 +32,19 @@
             android:layout_weight="1"
             android:paddingStart="12dp"
             android:text="BlogPad"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/text_primary"
             android:textSize="17sp"
             android:textStyle="bold" />
 
-        <TextView
+        <ImageButton
             android:id="@+id/btnBrowser"
-            android:layout_width="wrap_content"
+            android:layout_width="48dp"
             android:layout_height="match_parent"
-            android:background="?android:attr/selectableItemBackground"
-            android:gravity="center"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:text="浏览器"
-            android:textColor="#C9CDD4"
-            android:textSize="14sp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/cd_open_browser"
+            android:padding="12dp"
+            android:src="@drawable/ic_open_in_new"
+            android:tint="@color/text_secondary"
             android:visibility="gone" />
 
         <TextView
@@ -60,21 +56,24 @@
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
             android:text="预览"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/brand"
             android:textSize="14sp" />
 
-        <TextView
+        <ImageButton
             android:id="@+id/btnSettings"
-            android:layout_width="wrap_content"
+            android:layout_width="48dp"
             android:layout_height="match_parent"
-            android:background="?android:attr/selectableItemBackground"
-            android:gravity="center"
-            android:paddingStart="14dp"
-            android:paddingEnd="14dp"
-            android:text="设置"
-            android:textColor="#C9CDD4"
-            android:textSize="15sp" />
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/btn_settings"
+            android:padding="12dp"
+            android:src="@drawable/ic_settings"
+            android:tint="@color/text_secondary" />
     </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/border" />
 
     <ScrollView
         android:id="@+id/scrollView"
@@ -88,149 +87,176 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-        <LinearLayout
-            android:id="@+id/editPane"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="14dp">
-
-            <EditText
-                android:id="@+id/etTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="#FFFFFF"
-                android:hint="标题"
-                android:inputType="textCapSentences"
-                android:maxLines="3"
-                android:padding="14dp"
-                android:textColor="#1A1A1E"
-                android:textColorHint="#9AA0A8"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <EditText
-                android:id="@+id/etSlug"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="#FFFFFF"
-                android:hint="slug（URL 短名，留空自动生成）"
-                android:inputType="text"
-                android:padding="12dp"
-                android:textColor="#1A1A1E"
-                android:textColorHint="#9AA0A8"
-                android:textSize="14sp" />
-
             <LinearLayout
+                android:id="@+id/editPane"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
+                android:orientation="vertical"
+                android:padding="16dp">
 
                 <EditText
-                    android:id="@+id/etCategories"
-                    android:layout_width="0dp"
+                    android:id="@+id/etTitle"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:background="#FFFFFF"
-                    android:hint="分类"
-                    android:inputType="text"
-                    android:padding="12dp"
-                    android:textColor="#1A1A1E"
-                    android:textColorHint="#9AA0A8"
-                    android:textSize="14sp" />
+                    android:background="@drawable/bg_field"
+                    android:hint="@string/hint_title"
+                    android:inputType="textCapSentences"
+                    android:maxLines="3"
+                    android:padding="16dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_hint"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvMetaSummary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_field"
+                    android:drawableEnd="@drawable/ic_chevron_down"
+                    android:drawableTint="@color/text_secondary"
+                    android:ellipsize="end"
+                    android:gravity="center_vertical"
+                    android:maxLines="1"
+                    android:paddingStart="14dp"
+                    android:paddingTop="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="12dp"
+                    android:text="slug · 分类 · 标签"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <LinearLayout
+                    android:id="@+id/metaContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <EditText
+                        android:id="@+id/etSlug"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_field"
+                        android:hint="@string/hint_slug"
+                        android:inputType="text"
+                        android:padding="12dp"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_hint"
+                        android:textSize="14sp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                        <EditText
+                            android:id="@+id/etCategories"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_field"
+                            android:hint="@string/hint_categories"
+                            android:inputType="text"
+                            android:padding="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_hint"
+                            android:textSize="14sp" />
+
+                        <EditText
+                            android:id="@+id/etTags"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_field"
+                            android:hint="@string/hint_tags"
+                            android:inputType="text"
+                            android:padding="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_hint"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/rowCategoryChips"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="30dp"
+                            android:layout_height="wrap_content"
+                            android:text="分类"
+                            android:textColor="@color/text_hint"
+                            android:textSize="12sp" />
+
+                        <HorizontalScrollView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:scrollbars="none">
+
+                            <LinearLayout
+                                android:id="@+id/layoutCategoryChips"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal" />
+                        </HorizontalScrollView>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/rowTagChips"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="30dp"
+                            android:layout_height="wrap_content"
+                            android:text="标签"
+                            android:textColor="@color/text_hint"
+                            android:textSize="12sp" />
+
+                        <HorizontalScrollView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:scrollbars="none">
+
+                            <LinearLayout
+                                android:id="@+id/layoutTagChips"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal" />
+                        </HorizontalScrollView>
+                    </LinearLayout>
+                </LinearLayout>
 
                 <EditText
-                    android:id="@+id/etTags"
-                    android:layout_width="0dp"
+                    android:id="@+id/etBody"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:layout_weight="1"
-                    android:background="#FFFFFF"
-                    android:hint="标签（逗号分隔）"
-                    android:inputType="text"
-                    android:padding="12dp"
-                    android:textColor="#1A1A1E"
-                    android:textColorHint="#9AA0A8"
-                    android:textSize="14sp" />
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_field"
+                    android:gravity="top|start"
+                    android:hint="正文（支持 Markdown，空行分段）"
+                    android:inputType="textMultiLine|textCapSentences"
+                    android:minHeight="360dp"
+                    android:padding="14dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_hint"
+                    android:textSize="15sp" />
             </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/rowCategoryChips"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:visibility="gone">
-
-                <TextView
-                    android:layout_width="30dp"
-                    android:layout_height="wrap_content"
-                    android:text="分类"
-                    android:textColor="#9AA0A8"
-                    android:textSize="12sp" />
-
-                <HorizontalScrollView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:scrollbars="none">
-
-                    <LinearLayout
-                        android:id="@+id/layoutCategoryChips"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal" />
-                </HorizontalScrollView>
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/rowTagChips"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:visibility="gone">
-
-                <TextView
-                    android:layout_width="30dp"
-                    android:layout_height="wrap_content"
-                    android:text="标签"
-                    android:textColor="#9AA0A8"
-                    android:textSize="12sp" />
-
-                <HorizontalScrollView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:scrollbars="none">
-
-                    <LinearLayout
-                        android:id="@+id/layoutTagChips"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal" />
-                </HorizontalScrollView>
-            </LinearLayout>
-
-            <EditText
-                android:id="@+id/etBody"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="#FFFFFF"
-                android:gravity="top|start"
-                android:hint="正文（支持 Markdown，空行分段）"
-                android:inputType="textMultiLine|textCapSentences"
-                android:minHeight="320dp"
-                android:padding="14dp"
-                android:textColor="#1A1A1E"
-                android:textColorHint="#9AA0A8"
-                android:textSize="15sp" />
-        </LinearLayout>
 
             <LinearLayout
                 android:id="@+id/previewPane"
@@ -249,44 +275,68 @@
         android:id="@+id/bottomBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#FFFFFF"
-        android:orientation="vertical"
-        android:padding="12dp">
+        android:background="@color/surface"
+        android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/tvStatus"
+        <View
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingBottom="8dp"
-            android:text=""
-            android:textColor="#6B7280"
-            android:textSize="13sp"
-            android:visibility="gone" />
+            android:layout_height="1dp"
+            android:background="@color/border" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="vertical"
+            android:padding="12dp">
 
-            <CheckBox
-                android:id="@+id/cbDraft"
-                android:layout_width="0dp"
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="存为草稿"
-                android:textColor="#1A1A1E"
-                android:textSize="14sp" />
+                android:paddingBottom="8dp"
+                android:text=""
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp"
+                android:visibility="gone" />
 
-            <Button
-                android:id="@+id/btnPublish"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:backgroundTint="#2F6FED"
-                android:minWidth="120dp"
-                android:text="发布"
-                android:textColor="#FFFFFF"
-                android:textSize="15sp" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <CheckBox
+                    android:id="@+id/cbDraft"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_draft_chip"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:minHeight="40dp"
+                    android:paddingStart="14dp"
+                    android:paddingTop="8dp"
+                    android:paddingEnd="14dp"
+                    android:paddingBottom="8dp"
+                    android:text="@string/btn_draft"
+                    android:textColor="@color/draft_chip_text"
+                    android:textSize="13sp" />
+
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <Button
+                    android:id="@+id/btnPublish"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_primary_button"
+                    android:minWidth="120dp"
+                    android:text="@string/btn_publish"
+                    android:textAllCaps="false"
+                    android:textColor="@color/on_brand"
+                    android:textSize="15sp" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 
