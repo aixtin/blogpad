@@ -153,3 +153,8 @@ Planned versions, non-goals, and the editing/preview interaction rules live in
 ## License
 
 [MIT](LICENSE)
+
+## Author
+
+Built and maintained by **atin** ([@aixtin](https://github.com/aixtin)), an independent Android developer.
+`atin` and `aixtin` are the same person across GitHub, Gitee and [atin.asia](https://atin.asia/about/).
