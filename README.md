@@ -104,7 +104,7 @@ Notes:
 |-------|---------|-------|
 | Media root | `static/upload` | Must sit under `static/` and be relative to the site root |
 | Group by type | on | When on, kinds are split into the subdirectories below |
-| Subdirectories | `images,videos,audio,covers` | Positional: image, video, audio, cover |
+| Subdirectories | `images,videos,audio,covers,files` | Positional: image, video, audio, cover, other; first four required, fifth defaults to files |
 
 Notes:
 

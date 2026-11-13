@@ -16,14 +16,6 @@ data class MediaFile(
     val modified: Long
 )
 
-/** 回收站里的一个文件：relPath 是相对站点根的原始位置，还原时按它搬回去 */
-data class TrashFile(
-    val remotePath: String,
-    val relPath: String,
-    val batch: String,
-    val size: Long
-)
-
 /**
  * 一次扫描的结果。
  * refs 的键是站内 URL（形如 /upload/images/a.jpg），值是按 urlPath 引用它的文章（相对 content 的路径，去掉 .md）。
@@ -91,149 +83,21 @@ object MediaLibrary {
             sftp.connect(20000)
             val files = ArrayList<MediaFile>()
             walk(sftp, mediaAbs, urlPrefix, files)
-            return MediaScan(files.sortedBy { it.urlPath }, refs, posts.size)
+            // 附件库按修改时间倒序（新的在上面），同一时间戳再按路径排，保证顺序稳定
+            return MediaScan(
+                files.sortedWith(
+                    compareByDescending<MediaFile> { it.modified }
+                        .thenBy { it.urlPath }
+                ),
+                refs,
+                posts.size
+            )
         } catch (e: PublishException) {
             throw e
         } catch (e: Exception) {
             throw PublishException(SshPublisher.describe(e))
         } finally {
             try { sftp?.disconnect() } catch (_: Exception) { }
-            try { session.disconnect() } catch (_: Exception) { }
-        }
-    }
-
-    /** 把选中的文件搬进回收站（站点根下的 .blogpad-trash/批次/原路径），返回成功搬走的数量 */
-    fun moveToTrash(config: Config, targets: List<MediaFile>): Int {
-        val siteRoot = config.siteRoot.trimEnd('/')
-        if (siteRoot.isEmpty()) throw PublishException("请先在设置里填写站点根目录")
-        if (targets.isEmpty()) return 0
-        val base = "$siteRoot/$TRASH_DIR/${timestamp()}"
-        val session = SshPublisher.open(config)
-        var moved = 0
-        try {
-            for (file in targets) {
-                val prefix = "$siteRoot/"
-                if (!file.remotePath.startsWith(prefix)) continue
-                val rel = file.remotePath.removePrefix(prefix)
-                // 只处理站点内的正常相对路径，任何 .. 一律不碰
-                if (rel.isBlank() || rel.split('/').any { it.isEmpty() || it == ".." || it == "." }) continue
-                val dest = "$base/$rel"
-                val command = "mkdir -p '" + SshPublisher.escape(dest.substringBeforeLast('/')) + "' && " +
-                    "mv -f '" + SshPublisher.escape(file.remotePath) + "' '" +
-                    SshPublisher.escape(dest) + "' && echo BLOGPAD_MV_OK"
-                val (code, out) = SshPublisher.exec(session, command)
-                if (code == 0 && out.contains("BLOGPAD_MV_OK")) moved++
-            }
-        } catch (e: PublishException) {
-            throw e
-        } catch (e: Exception) {
-            throw PublishException(SshPublisher.describe(e))
-        } finally {
-            try { session.disconnect() } catch (_: Exception) { }
-        }
-        return moved
-    }
-
-    /** 列出回收站里的文件，最近一批排前面 */
-    fun listTrash(config: Config): List<TrashFile> {
-        val siteRoot = config.siteRoot.trimEnd('/')
-        if (siteRoot.isEmpty()) throw PublishException("请先在设置里填写站点根目录")
-        val root = "$siteRoot/$TRASH_DIR"
-        val session = SshPublisher.open(config)
-        var sftp: ChannelSftp? = null
-        try {
-            sftp = session.openChannel("sftp") as ChannelSftp
-            sftp.connect(20000)
-            val out = ArrayList<TrashFile>()
-            walkTrash(sftp, root, "", out)
-            return out.sortedWith(compareByDescending<TrashFile> { it.batch }.thenBy { it.relPath })
-        } catch (e: PublishException) {
-            throw e
-        } catch (e: Exception) {
-            throw PublishException(SshPublisher.describe(e))
-        } finally {
-            try { sftp?.disconnect() } catch (_: Exception) { }
-            try { session.disconnect() } catch (_: Exception) { }
-        }
-    }
-
-    /** 从回收站搬回原位，返回成功还原的数量 */
-    fun restore(config: Config, files: List<TrashFile>): Int {
-        val siteRoot = config.siteRoot.trimEnd('/')
-        if (siteRoot.isEmpty()) throw PublishException("请先在设置里填写站点根目录")
-        if (files.isEmpty()) return 0
-        val session = SshPublisher.open(config)
-        var restored = 0
-        try {
-            for (file in files) {
-                val rel = file.relPath
-                if (rel.isBlank() || rel.split('/').any { it.isEmpty() || it == ".." || it == "." }) continue
-                val dest = "$siteRoot/$rel"
-                val command = "mkdir -p '" + SshPublisher.escape(dest.substringBeforeLast('/')) + "' && " +
-                    "mv -f '" + SshPublisher.escape(file.remotePath) + "' '" +
-                    SshPublisher.escape(dest) + "' && echo BLOGPAD_MV_OK"
-                val (code, out) = SshPublisher.exec(session, command)
-                if (code == 0 && out.contains("BLOGPAD_MV_OK")) restored++
-            }
-        } catch (e: PublishException) {
-            throw e
-        } catch (e: Exception) {
-            throw PublishException(SshPublisher.describe(e))
-        } finally {
-            try { session.disconnect() } catch (_: Exception) { }
-        }
-        return restored
-    }
-
-    /** 彻底删除回收站里的选中项，返回删除数量 */
-    fun purge(config: Config, files: List<TrashFile>): Int {
-        if (files.isEmpty()) return 0
-        val siteRoot = config.siteRoot.trimEnd('/')
-        val trashRoot = "$siteRoot/$TRASH_DIR/"
-        val session = SshPublisher.open(config)
-        var sftp: ChannelSftp? = null
-        var removed = 0
-        try {
-            sftp = session.openChannel("sftp") as ChannelSftp
-            sftp.connect(20000)
-            for (file in files) {
-                // 兜底：只允许删回收站里的路径
-                if (!file.remotePath.startsWith(trashRoot)) continue
-                if (file.remotePath.split('/').any { it == ".." }) continue
-                try {
-                    sftp.rm(file.remotePath)
-                    removed++
-                } catch (_: Exception) {
-                    // 单个失败不打断整批，最终以返回数量为准
-                }
-            }
-        } catch (e: PublishException) {
-            throw e
-        } catch (e: Exception) {
-            throw PublishException(SshPublisher.describe(e))
-        } finally {
-            try { sftp?.disconnect() } catch (_: Exception) { }
-            try { session.disconnect() } catch (_: Exception) { }
-        }
-        return removed
-    }
-
-    /** 清空整个回收站 */
-    fun purgeAll(config: Config): Boolean {
-        val siteRoot = config.siteRoot.trimEnd('/')
-        if (siteRoot.isEmpty()) throw PublishException("请先在设置里填写站点根目录")
-        if (!siteRoot.startsWith("/")) throw PublishException("站点根目录必须是绝对路径")
-        val trashRoot = "$siteRoot/$TRASH_DIR"
-        if (!trashRoot.endsWith("/$TRASH_DIR")) throw PublishException("回收站路径校验失败，已取消")
-        val session = SshPublisher.open(config)
-        try {
-            val (code, out) = SshPublisher.exec(session, "rm -rf '" + SshPublisher.escape(trashRoot) + "' && echo BLOGPAD_RM_OK")
-            return code == 0 && out.contains("BLOGPAD_RM_OK")
-        } catch (e: PublishException) {
-            throw e
-        } catch (e: Exception) {
-            throw PublishException(SshPublisher.describe(e))
-        } finally {
             try { session.disconnect() } catch (_: Exception) { }
         }
     }
@@ -284,24 +148,6 @@ object MediaLibrary {
                 walk(sftp, abs, url, out)
             } else {
                 out.add(MediaFile(abs, url, entry.attrs.size, entry.attrs.mTime.toLong()))
-            }
-        }
-    }
-
-    private fun walkTrash(sftp: ChannelSftp, absDir: String, relDir: String, out: MutableList<TrashFile>) {
-        val entries = try { sftp.ls(absDir) } catch (_: Exception) { return }
-        for (entry in entries) {
-            val name = entry.filename
-            if (name == "." || name == "..") continue
-            val abs = "$absDir/$name"
-            val rel = if (relDir.isEmpty()) name else "$relDir/$name"
-            if (entry.attrs.isDir) {
-                walkTrash(sftp, abs, rel, out)
-            } else {
-                // 结构是 .blogpad-trash/批次/原相对路径
-                val slash = rel.indexOf('/')
-                if (slash <= 0) continue
-                out.add(TrashFile(abs, rel.substring(slash + 1), rel.substring(0, slash), entry.attrs.size))
             }
         }
     }

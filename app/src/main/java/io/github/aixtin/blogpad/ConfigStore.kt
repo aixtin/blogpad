@@ -25,7 +25,7 @@ data class Config(
     var password: String = "",
     var siteRoot: String = "",
     var postDir: String = "content/post",
-    var buildCmd: String = "hugo --gc --minify",
+    var buildCmd: String = DEFAULT_BUILD_CMD,
     var siteUrl: String = "",
     var linkTemplate: String = "",
     var hostFingerprint: String = "",
@@ -33,7 +33,7 @@ data class Config(
     var mediaRoot: String = DEFAULT_MEDIA_ROOT,
     /** 是否按类型分子目录；关掉则所有附件平铺在 mediaRoot */
     var mediaGrouping: Boolean = true,
-    /** 四个分类子目录名，逗号分隔：图片、视频、音频、封面 */
+    /** 分类子目录名，逗号分隔：图片、视频、音频、封面、其他文件 */
     var mediaSubdirs: String = DEFAULT_MEDIA_SUBDIRS
 ) {
 
@@ -78,9 +78,10 @@ data class Config(
             return "附件库必须位于 static/ 下，否则 Hugo 不会复制到站点根"
         }
         if (mediaGrouping) {
-            val names = mediaSubdirs.split(',', '，', ';', '；').map { it.trim() }
-            if (names.size < MediaKind.values().size || names.any { it.isEmpty() }) {
-                return "分类子目录要填满 4 个：图片、视频、音频、封面"
+            val names = mediaSubdirs.split(',', '，', ';', '；').map { it.trim() }.filter { it.isNotEmpty() }
+            // 前四个是必填；第五个（其他文件）可以留空，留空就回落成 files
+            if (names.size < 4) {
+                return "分类子目录至少填 4 个：图片、视频、音频、封面（第 5 个为其他文件目录，可留空）"
             }
             if (names.any { it.contains('/') || it == ".." }) {
                 return "分类子目录只能写单层目录名，不能带 / 或 .."
@@ -95,6 +96,15 @@ data class Config(
         authType == "key" && privateKey.isBlank() -> "请先导入 SSH 私钥"
         authType == "password" && password.isBlank() -> "请先填写登录密码"
         else -> null
+    }
+
+    /**
+     * 站点基地址：拼站内链接时统一出口。
+     * 没填就回落到默认站点；顺手剥掉 www.，避免同一个站出现两种地址。
+     */
+    fun siteBase(): String {
+        val raw = siteUrl.trim().trimEnd('/')
+        return raw.ifEmpty { DEFAULT_SITE_URL }.replaceFirst("://www.", "://").trimEnd('/')
     }
 
     fun siteReady(): String? = when {
@@ -117,7 +127,25 @@ data class Config(
 
     companion object {
         const val DEFAULT_MEDIA_ROOT = "static/upload"
-        const val DEFAULT_MEDIA_SUBDIRS = "images,videos,audio,covers"
+        const val DEFAULT_MEDIA_SUBDIRS = "images,videos,audio,covers,files"
+
+        /**
+         * 默认构建命令。
+         * --cleanDestinationDir 是必须的：Hugo 不会删掉 public 里已经没有源文件的旧产物，
+         * 不加这一项，删掉的文章和转成草稿的文章都还留在线上，回收站等于白搬。
+         */
+        /** 站点地址没填时的兜底，保证发布后仍有可点开的文章链接 */
+        const val DEFAULT_SITE_URL = "https://atin.asia"
+
+        const val DEFAULT_BUILD_CMD = "hugo --gc --minify --cleanDestinationDir"
+
+        /** 老版本写进配置的默认值，读到就升级成新的，不动用户自己改过的命令 */
+        private const val LEGACY_BUILD_CMD = "hugo --gc --minify"
+
+        private fun normalizeBuildCmd(raw: String): String {
+            val value = raw.trim()
+            return if (value.isEmpty() || value == LEGACY_BUILD_CMD) DEFAULT_BUILD_CMD else value
+        }
 
         fun fromJson(o: JSONObject): Config = Config(
             host = o.optString("host", ""),
@@ -129,7 +157,7 @@ data class Config(
             password = o.optString("password", ""),
             siteRoot = o.optString("siteRoot", ""),
             postDir = o.optString("postDir", "content/post"),
-            buildCmd = o.optString("buildCmd", "hugo --gc --minify"),
+            buildCmd = normalizeBuildCmd(o.optString("buildCmd", "")),
             siteUrl = o.optString("siteUrl", ""),
             linkTemplate = o.optString("linkTemplate", ""),
             hostFingerprint = o.optString("hostFingerprint", ""),
@@ -145,14 +173,18 @@ enum class MediaKind(val index: Int, val fallbackName: String, val label: String
     IMAGE(0, "images", "图片"),
     VIDEO(1, "videos", "视频"),
     AUDIO(2, "audio", "音频"),
-    COVER(3, "covers", "封面");
+    COVER(3, "covers", "封面"),
+
+    /** PDF、压缩包、表格之类：不进图片/音视频，正文里当普通链接挂出去 */
+    OTHER(4, "files", "其他文件");
 
     companion object {
         fun of(mime: String?): MediaKind = when {
-            mime == null -> IMAGE
+            mime == null -> OTHER
+            mime.startsWith("image/") -> IMAGE
             mime.startsWith("video/") -> VIDEO
             mime.startsWith("audio/") -> AUDIO
-            else -> IMAGE
+            else -> OTHER
         }
     }
 }
@@ -166,15 +198,36 @@ object ConfigStore {
     private const val STORE_KEY = "config_json"
     private const val KEY_ALIAS = "blogpad_master_key"
     private const val GCM_TAG_BITS = 128
+    private const val MIGRATE_BUILD_CMD = "build_cmd_clean_migrated"
 
     fun load(context: Context): Config {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val raw = prefs.getString(STORE_KEY, null) ?: return Config()
-        return try {
+        val config = try {
             Config.fromJson(JSONObject(decrypt(raw)))
         } catch (e: Exception) {
-            Config()
+            return Config()
         }
+        return migrateBuildCmd(context, prefs, config)
+    }
+
+    /**
+     * 一次性迁移：老配置里的构建命令没有 --cleanDestinationDir，顺手补上并写回。
+     * 只做一次，之后用户在设置里主动删掉就删掉了，不会每次启动又被塞回来。
+     */
+    private fun migrateBuildCmd(
+        context: Context,
+        prefs: android.content.SharedPreferences,
+        config: Config
+    ): Config {
+        if (prefs.getBoolean(MIGRATE_BUILD_CMD, false)) return config
+        prefs.edit().putBoolean(MIGRATE_BUILD_CMD, true).apply()
+        val cmd = config.buildCmd.trim()
+        val needed = cmd.contains("hugo") && !cmd.contains("--cleanDestinationDir")
+        if (!needed) return config
+        val upgraded = config.copy(buildCmd = "$cmd --cleanDestinationDir")
+        save(context, upgraded)
+        return upgraded
     }
 
     fun save(context: Context, config: Config) {

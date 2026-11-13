@@ -83,12 +83,17 @@ object AttachmentInbox {
         val resolver = context.contentResolver
         val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
             ?: throw IllegalStateException("读不到这个文件，可能是授权失效，重选一次试试")
+        val name = displayName(resolver, uri)
+        return addBytes(context, bytes, name.ifBlank { "附件" }, kind)
+    }
+
+    /** 已经在内存里加工过的内容（例如裁好的封面）直接落盘，不再绕一遍 Uri */
+    fun addBytes(context: Context, bytes: ByteArray, name: String, kind: MediaKind): InboxItem {
         if (bytes.isEmpty()) throw IllegalStateException("这个文件是空的")
         if (bytes.size > MAX_BYTES) {
             throw IllegalStateException("文件超过 64MB，建议先压缩再传")
         }
 
-        val name = displayName(resolver, uri)
         val ext = extensionOf(name, kind)
         val id = UUID.randomUUID().toString().replace("-", "").take(16)
         val file = File(dir(context), "$id.$ext")
@@ -187,6 +192,7 @@ object AttachmentInbox {
             MediaKind.IMAGE, MediaKind.COVER -> "jpg"
             MediaKind.VIDEO -> "mp4"
             MediaKind.AUDIO -> "mp3"
+            MediaKind.OTHER -> "bin"
         }
     }
 }

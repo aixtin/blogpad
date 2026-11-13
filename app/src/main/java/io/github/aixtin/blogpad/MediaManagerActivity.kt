@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.Message
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
@@ -41,7 +42,16 @@ class MediaManagerActivity : Activity() {
     private val adapter = MediaAdapter()
     private val selected = LinkedHashSet<String>()
     private val worker = Executors.newSingleThreadExecutor()
-    private val mainHandler = Handler(Looper.getMainLooper())
+    /**
+     * 后台线程的结果统一 post 回来。页面已经关了（例如用户在「正在读取远端文章」时按返回）
+     * 就直接丢掉，否则回调里弹的 AlertDialog 会撞上 BadTokenException 把 App 带走。
+     */
+    private val mainHandler = object : Handler(Looper.getMainLooper()) {
+        override fun dispatchMessage(msg: Message) {
+            if (isFinishing || isDestroyed) return
+            super.dispatchMessage(msg)
+        }
+    }
 
     private var config = Config()
     private var mode = MODE_FILES
@@ -114,7 +124,7 @@ class MediaManagerActivity : Activity() {
 
     private fun applyModeUi() {
         val isTrash = mode == MODE_TRASH
-        btnMode.text = if (isTrash) "看附件库" else "看回收站"
+        btnMode.text = if (isTrash) "附件库" else "回收站"
         btnPrimary.text = if (isTrash) "还原" else "移入回收站"
         btnDanger.visibility = if (isTrash) View.VISIBLE else View.GONE
         btnPurgeAll.visibility = if (isTrash) View.VISIBLE else View.GONE
@@ -141,7 +151,7 @@ class MediaManagerActivity : Activity() {
                         renderFiles()
                     }
                 } else {
-                    val list = MediaLibrary.listTrash(snapshot)
+                    val list = TrashStore.listMediaTrash(snapshot)
                     mainHandler.post {
                         trashFiles = list
                         files = emptyList()
@@ -297,7 +307,7 @@ class MediaManagerActivity : Activity() {
         if (targets.isEmpty()) return
         AlertDialog.Builder(this)
             .setTitle("还原")
-            .setMessage("把这 ${targets.size} 个文件搬回原来的位置。同名文件会被覆盖。")
+            .setMessage("把这 ${targets.size} 个文件搬回原来的位置，只搬文件，不构建。")
             .setNegativeButton("取消", null)
             .setPositiveButton("还原") { _, _ -> runRestore(targets) }
             .show()
@@ -308,7 +318,8 @@ class MediaManagerActivity : Activity() {
         val snapshot = config
         worker.execute {
             try {
-                val moved = MediaLibrary.moveToTrash(snapshot, targets)
+                val batch = TrashStore.moveMediaToTrash(snapshot, targets)
+                val moved = if (batch.isEmpty()) 0 else targets.size
                 mainHandler.post {
                     showMessage("已移入回收站：$moved 个")
                     selected.clear()
@@ -328,9 +339,14 @@ class MediaManagerActivity : Activity() {
         val snapshot = config
         worker.execute {
             try {
-                val restored = MediaLibrary.restore(snapshot, targets)
+                val result = TrashStore.restoreMedia(snapshot, targets, build = false)
                 mainHandler.post {
-                    showMessage("已还原：$restored 个")
+                    if (result.conflicts.isNotEmpty()) {
+                        setBusy(false)
+                        showMessage("原位置已被占用，一个都没还原：\n" + result.conflicts.joinToString("\n"))
+                        return@post
+                    }
+                    showMessage("已还原：${result.restored} 个（未构建，网站下次构建后才更新）")
                     selected.clear()
                     reload()
                 }
@@ -348,7 +364,7 @@ class MediaManagerActivity : Activity() {
         val snapshot = config
         worker.execute {
             try {
-                val removed = MediaLibrary.purge(snapshot, targets)
+                val removed = TrashStore.purgeMedia(snapshot, targets)
                 mainHandler.post {
                     showMessage("已永久删除：$removed 个")
                     selected.clear()
@@ -368,7 +384,7 @@ class MediaManagerActivity : Activity() {
         val snapshot = config
         worker.execute {
             try {
-                val ok = MediaLibrary.purgeAll(snapshot)
+                val ok = TrashStore.purgeAll(snapshot, TrashKind.MEDIA)
                 mainHandler.post {
                     showMessage(if (ok) "回收站已清空" else "清空失败，回收站可能已经空了")
                     selected.clear()
