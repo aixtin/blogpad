@@ -19,7 +19,7 @@ import android.widget.Toast
 import java.util.concurrent.Executors
 
 /**
- * 附件管家。
+ * 附件库（设置页底部「附件」进入）。
  *
  * 只做三件事：看清附件库里有什么、看清哪些没人引用、把不要的搬走。
  * 不做重命名和移动 —— 静态站里文件路径就是文章的引用凭证，改名等于要求全局改写正文，

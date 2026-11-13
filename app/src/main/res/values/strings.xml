@@ -16,6 +16,7 @@
     <string name="cd_back">返回</string>
     <string name="cd_open_browser">在浏览器中打开</string>
     <string name="btn_attach">附件</string>
+    <string name="title_media_library">附件库</string>
     <string name="btn_done">完成</string>
     <string name="btn_save">保存</string>
     <string name="publish_title">发布文章</string>

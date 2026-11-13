@@ -179,7 +179,7 @@ class SettingsActivity : Activity() {
         finish()
     }
 
-    /** 进附件管家前先把当前输入落盘，免得管家读到上一版配置 */
+    /** 进附件库前先把当前输入落盘，免得读到上一版配置 */
     private fun openMediaManager() {
         val next = collectConfig()
         val blocker = next.connectionReady() ?: next.siteReady() ?: next.mediaReady()
