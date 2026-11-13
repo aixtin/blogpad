@@ -12,7 +12,9 @@ object PublishFlow {
 
     data class Outcome(
         val save: SaveResult,
-        val uploaded: Int
+        val uploaded: Int,
+        /** 最终写进 front matter 的封面（远端 URL）；没有封面时为空串 */
+        val cover: String
     )
 
     fun run(
@@ -42,7 +44,9 @@ object PublishFlow {
             val kind = if (id == coverInboxId) MediaKind.COVER else item.kind
             uploads[id] = SshPublisher.MediaUpload(id, kind, item.file(context), item.displayName)
         }
-        val coverItem = inbox[coverInboxId]
+        // 封面是在发布页里选的，调用方拿到的暂存区快照里很可能还没有这一项，
+        // 找不到就按 id 直接回暂存区捞，否则封面既传不上去也写不进 front matter
+        val coverItem = inbox[coverInboxId] ?: AttachmentInbox.find(context, coverInboxId)
         if (coverItem != null && !uploads.containsKey(coverItem.id)) {
             uploads[coverItem.id] = SshPublisher.MediaUpload(
                 coverItem.id,
@@ -57,11 +61,11 @@ object PublishFlow {
         var body = draft.body
         mapping.forEach { (id, ref) -> body = body.replace(AttachmentInbox.SCHEME + id, ref.urlPath) }
 
-        val cover = coverItem?.let { mapping[it.id]?.urlPath } ?: draft.coverImage
+        val cover = coverItem?.let { mapping[it.id]?.urlPath } ?: draft.coverImage.trim()
         val save = PostRepository.save(config, draft.copy(body = body, coverImage = cover), originalPath)
 
         // 只有走到这里，附件才算真的进了站点，副本可以删了
         AttachmentInbox.remove(context, mapping.keys)
-        return Outcome(save, mapping.size)
+        return Outcome(save, mapping.size, cover)
     }
 }

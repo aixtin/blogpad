@@ -117,18 +117,42 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
 
-            <HorizontalScrollView
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:scrollbars="none">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-                <LinearLayout
-                    android:id="@+id/layoutCategoryChips"
+                <TextView
+                    android:id="@+id/btnNewCategory"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal" />
-            </HorizontalScrollView>
+                    android:background="@drawable/bg_chip"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingStart="12dp"
+                    android:paddingTop="6dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="6dp"
+                    android:text="＋ 新建"
+                    android:textColor="@color/brand"
+                    android:textSize="13sp" />
+
+                <HorizontalScrollView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/layoutCategoryChips"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
+            </LinearLayout>
 
             <TextView
                 android:layout_width="match_parent"
@@ -138,18 +162,42 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
 
-            <HorizontalScrollView
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:scrollbars="none">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-                <LinearLayout
-                    android:id="@+id/layoutTagChips"
+                <TextView
+                    android:id="@+id/btnNewTag"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal" />
-            </HorizontalScrollView>
+                    android:background="@drawable/bg_chip"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingStart="12dp"
+                    android:paddingTop="6dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="6dp"
+                    android:text="＋ 新建"
+                    android:textColor="@color/brand"
+                    android:textSize="13sp" />
+
+                <HorizontalScrollView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/layoutTagChips"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
+            </LinearLayout>
 
             <TextView
                 android:layout_width="match_parent"
@@ -184,7 +232,7 @@
                     android:layout_weight="1"
                     android:ellipsize="middle"
                     android:maxLines="2"
-                    android:text="未设置（文章可以没有封面）"
+                    android:text="未设置（选图后自动裁成 16:9）"
                     android:textColor="@color/text_hint"
                     android:textSize="12sp" />
 

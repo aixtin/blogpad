@@ -8,5 +8,24 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">@color/text_primary</item>
         <item name="android:windowBackground">@color/bg</item>
+        <!-- 所有 AlertDialog 统一走这里，不再各自长成系统默认的直角灰卡 -->
+        <item name="android:alertDialogTheme">@style/AppDialogTheme</item>
+        <item name="android:datePickerDialogTheme">@style/AppDialogTheme</item>
+        <item name="android:timePickerDialogTheme">@style/AppDialogTheme</item>
     </style>
+
+    <style name="AppDialogTheme" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowMinWidthMajor">84%</item>
+        <item name="android:windowMinWidthMinor">88%</item>
+        <item name="android:backgroundDimAmount">0.42</item>
+        <item name="android:colorAccent">@color/brand</item>
+        <item name="android:colorBackground">@color/surface</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_hint</item>
+    </style>
+
 </resources>

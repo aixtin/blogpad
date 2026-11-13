@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.Message
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -43,7 +44,16 @@ class SettingsActivity : Activity() {
 
     private var config = Config()
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
-    private val mainHandler = Handler(Looper.getMainLooper())
+    /**
+     * 后台线程的结果统一 post 回来。页面已经关了（例如用户在「正在读取远端文章」时按返回）
+     * 就直接丢掉，否则回调里弹的 AlertDialog 会撞上 BadTokenException 把 App 带走。
+     */
+    private val mainHandler = object : Handler(Looper.getMainLooper()) {
+        override fun dispatchMessage(msg: Message) {
+            if (isFinishing || isDestroyed) return
+            super.dispatchMessage(msg)
+        }
+    }
 
     companion object {
         private const val REQ_PICK_KEY = 1001
@@ -82,7 +92,8 @@ class SettingsActivity : Activity() {
         findViewById<Button>(R.id.btnImportKey).setOnClickListener { pickKeyFile() }
         findViewById<Button>(R.id.btnClearKey).setOnClickListener { etPrivateKey.setText("") }
         btnTest.setOnClickListener { runTest() }
-        findViewById<Button>(R.id.btnMediaManager).setOnClickListener { openMediaManager() }
+        findViewById<View>(R.id.tvOpenMedia).setOnClickListener { openMediaManager() }
+        findViewById<View>(R.id.tvOpenPostTrash).setOnClickListener { openPostTrash() }
 
         rbKey.setOnClickListener { selectAuth(true) }
         rbPassword.setOnClickListener { selectAuth(false) }
@@ -133,7 +144,7 @@ class SettingsActivity : Activity() {
             password = etPassword.text.toString(),
             siteRoot = etSiteRoot.text.toString().trim(),
             postDir = etPostDir.text.toString().trim().ifEmpty { "content/post" },
-            buildCmd = etBuildCmd.text.toString().trim().ifEmpty { "hugo --gc --minify" },
+            buildCmd = etBuildCmd.text.toString().trim().ifEmpty { Config.DEFAULT_BUILD_CMD },
             siteUrl = etSiteUrl.text.toString().trim(),
             linkTemplate = etLinkTemplate.text.toString().trim(),
             hostFingerprint = config.hostFingerprint,
@@ -182,6 +193,10 @@ class SettingsActivity : Activity() {
         ConfigStore.save(this, next)
         config = next
         startActivity(Intent(this, MediaManagerActivity::class.java))
+    }
+
+    private fun openPostTrash() {
+        startActivity(Intent(this, PostTrashActivity::class.java))
     }
 
     private fun selectAuth(useKey: Boolean) {

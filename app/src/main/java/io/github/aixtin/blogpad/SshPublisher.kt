@@ -273,6 +273,7 @@ object SshPublisher {
             MediaKind.VIDEO -> "mp4"
             MediaKind.AUDIO -> "mp3"
             MediaKind.COVER -> "jpg"
+            MediaKind.OTHER -> "bin"
         }
     }
 
@@ -397,8 +398,7 @@ object SshPublisher {
         if (draft) return ""
         val template = config.linkTemplate.trim()
         if (template.isNotEmpty()) return template.replace("{slug}", slug)
-        val base = config.siteUrl.trim().trimEnd('/')
-        return if (base.isEmpty()) "" else "$base/archives/$slug/"
+        return "${config.siteBase()}/archives/$slug/"
     }
 
     internal fun escape(arg: String): String = arg.replace("'", "'\\''")

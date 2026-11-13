@@ -97,45 +97,11 @@
                     android:textSize="20sp"
                     android:textStyle="bold" />
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/btnAttach"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/bg_field"
-                        android:paddingStart="12dp"
-                        android:paddingTop="7dp"
-                        android:paddingEnd="12dp"
-                        android:paddingBottom="7dp"
-                        android:text="@string/btn_attach"
-                        android:textColor="@color/text_primary"
-                        android:textSize="13sp" />
-
-                    <TextView
-                        android:id="@+id/tvAttachHint"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
-                        android:layout_weight="1"
-                        android:ellipsize="end"
-                        android:gravity="end|center_vertical"
-                        android:singleLine="true"
-                        android:text=""
-                        android:textColor="@color/text_hint"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
                 <EditText
                     android:id="@+id/etBody"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="12dp"
                     android:background="@drawable/bg_field"
                     android:gravity="top|start"
                     android:hint="正文（支持 Markdown，空行分段）"
@@ -188,15 +154,38 @@
                 android:textSize="13sp"
                 android:visibility="gone" />
 
-            <Button
-                android:id="@+id/btnDone"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:background="@drawable/bg_primary_button"
-                android:text="@string/btn_done"
-                android:textAllCaps="false"
-                android:textColor="@color/on_brand"
-                android:textSize="15sp" />
+                android:layout_height="46dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/btnAttach"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_pill_left"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:text="@string/btn_attach"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/btnDone"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_pill_right"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:text="@string/btn_done"
+                    android:textColor="@color/on_brand"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 

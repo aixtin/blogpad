@@ -6,10 +6,13 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.provider.MediaStore
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.Message
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.TypedValue
@@ -37,6 +40,8 @@ class MainActivity : Activity() {
     companion object {
         const val EXTRA_PATH = "remote_path"
         private const val REQ_PICK_MEDIA = 1001
+        /** 一次最多挑几个附件，和 Nyral 一个口径 */
+        private const val MAX_PICK = 9
         private const val REQ_PUBLISH = 1002
     }
 
@@ -44,7 +49,6 @@ class MainActivity : Activity() {
     private lateinit var etBody: EditText
     private lateinit var btnDone: TextView
     private lateinit var btnAttach: TextView
-    private lateinit var tvAttachHint: TextView
     private lateinit var tvStatus: TextView
     private lateinit var btnToggle: TextView
     private lateinit var btnBrowser: View
@@ -59,7 +63,16 @@ class MainActivity : Activity() {
     private var bodySelection = 0
 
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
-    private val mainHandler = Handler(Looper.getMainLooper())
+    /**
+     * 后台线程的结果统一 post 回来。页面已经关了（例如用户在「正在读取远端文章」时按返回）
+     * 就直接丢掉，否则回调里弹的 AlertDialog 会撞上 BadTokenException 把 App 带走。
+     */
+    private val mainHandler = object : Handler(Looper.getMainLooper()) {
+        override fun dispatchMessage(msg: Message) {
+            if (isFinishing || isDestroyed) return
+            super.dispatchMessage(msg)
+        }
+    }
 
     private var remotePath: String? = null
     private var loadedDate: String? = null
@@ -76,7 +89,10 @@ class MainActivity : Activity() {
     /** 已选但还没上传的封面，指向暂存区 */
     private var coverInboxId: String? = null
 
-    private var pendingKind: MediaKind? = null
+    /** 这次是从「相册」还是「其他」进来的，决定选择器给什么类型 */
+    private var pendingScope: PickScope? = null
+
+    private enum class PickScope { GALLERY, ANY }
     private var loaded = false
     private var snapshot = ""
     /** 暂存区快照，避免每敲一个字都去读一次磁盘 */
@@ -98,7 +114,6 @@ class MainActivity : Activity() {
         etBody = findViewById(R.id.etBody)
         btnDone = findViewById(R.id.btnDone)
         btnAttach = findViewById(R.id.btnAttach)
-        tvAttachHint = findViewById(R.id.tvAttachHint)
         tvStatus = findViewById(R.id.tvStatus)
         btnToggle = findViewById(R.id.btnToggle)
         btnBrowser = findViewById(R.id.btnBrowser)
@@ -229,27 +244,24 @@ class MainActivity : Activity() {
 
     // ---------- 附件：只暂存，不上传 ----------
 
+    /**
+     * 只留两个入口：相册（图片和视频一起选，不用先想清楚是哪一种）、其他（音频、PDF、
+     * 压缩包……都从这里进）。具体归哪个目录由选中文件的 MIME 决定，不再靠菜单猜。
+     */
     private fun chooseAttachment() {
         if (!loaded) {
             showMessage("内容还没读取完成，请稍候", true)
             return
         }
-        val labels = arrayOf("图片", "视频", "音频", "设为封面")
         AlertDialog.Builder(this)
             .setTitle("插入附件")
-            .setItems(labels) { _, index ->
-                val kind = when (index) {
-                    0 -> MediaKind.IMAGE
-                    1 -> MediaKind.VIDEO
-                    2 -> MediaKind.AUDIO
-                    else -> MediaKind.COVER
-                }
-                pickMedia(kind)
+            .setItems(arrayOf("相册", "其他")) { _, index ->
+                pickMedia(if (index == 0) PickScope.GALLERY else PickScope.ANY)
             }
             .show()
     }
 
-    private fun pickMedia(kind: MediaKind) {
+    private fun pickMedia(scope: PickScope) {
         val config = ConfigStore.load(this)
         config.connectionReady()?.let {
             showMessage(it, true)
@@ -274,23 +286,51 @@ class MainActivity : Activity() {
             return
         }
 
-        pendingKind = kind
-        val mime = when (kind) {
-            MediaKind.IMAGE, MediaKind.COVER -> "image/*"
-            MediaKind.VIDEO -> "video/*"
-            MediaKind.AUDIO -> "audio/*"
+        pendingScope = scope
+        if (scope == PickScope.GALLERY && launchPhotoPicker()) return
+        startDocumentPicker(scope)
+    }
+
+    /**
+     * 相册走系统 Photo Picker（Android 13+）：网格里图片视频混排、可多选、不需要存储权限，
+     * 各家 ROM 表现一致。没有这个组件的机型返回 false，由文档选择器兜底。
+     */
+    private fun launchPhotoPicker(): Boolean {
+        val intent = MediaPick.photoPicker(imagesOnly = false, max = MAX_PICK) ?: return false
+        return try {
+            startActivityForResult(intent, REQ_PICK_MEDIA)
+            true
+        } catch (e: Exception) {
+            false
         }
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = mime
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
+    }
+
+    /** 兜底与「其他」共用的文件选择器；相册入口只放行图片和视频 */
+    private fun startDocumentPicker(scope: PickScope) {
+        val intent = MediaPick.documentPicker(
+            mimes = if (scope == PickScope.GALLERY) MediaPick.galleryMimes else null,
+            multiple = true
+        )
         try {
             startActivityForResult(intent, REQ_PICK_MEDIA)
         } catch (e: Exception) {
-            pendingKind = null
+            pendingScope = null
             showMessage("没有可用的文件选择器：${e.message ?: e.javaClass.simpleName}", true)
         }
+    }
+
+    /** 单选时 data 与 clipData 会带同一个 uri，多选只有 clipData；先去重再最多取 MAX_PICK 个 */
+    private fun collectPickedUris(data: Intent?): List<Uri> {
+        if (data == null) return emptyList()
+        val out = LinkedHashSet<Uri>()
+        data.data?.let { out.add(it) }
+        val clip = data.clipData
+        if (clip != null) {
+            for (i in 0 until clip.itemCount) {
+                clip.getItemAt(i)?.uri?.let { out.add(it) }
+            }
+        }
+        return out.toList().take(MAX_PICK)
     }
 
     @Deprecated("纯 Activity 没有 registerForActivityResult，这里继续用旧回调")
@@ -298,21 +338,29 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
             REQ_PICK_MEDIA -> {
-                val kind = pendingKind
-                pendingKind = null
-                if (resultCode != RESULT_OK || kind == null) return
-                val uri = data?.data ?: return
-                stageAttachment(uri, kind)
+                val scope = pendingScope
+                pendingScope = null
+                if (resultCode != RESULT_OK || scope == null) return
+                val uris = collectPickedUris(data)
+                if (uris.isNotEmpty()) stageAttachments(uris)
             }
             REQ_PUBLISH -> {
+                // 封面先收下：不管这次是「发布」还是「只是退回来改正文」，
+                // 发布页里的封面选择都得跟着回到这一页，否则用户折返一趟就白选了
+                data?.let { d ->
+                    if (d.hasExtra(PublishMetaActivity.RESULT_COVER_INBOX)) {
+                        val remote = d.getStringExtra(PublishMetaActivity.RESULT_COVER).orEmpty()
+                        val inbox = d.getStringExtra(PublishMetaActivity.RESULT_COVER_INBOX)
+                            ?.ifBlank { null }
+                        coverImage = remote
+                        coverInboxId = inbox
+                    }
+                }
                 if (resultCode != RESULT_OK || data == null) return
                 slugValue = data.getStringExtra(PublishMetaActivity.RESULT_SLUG).orEmpty()
                 categoriesValue = data.getStringExtra(PublishMetaActivity.RESULT_CATEGORIES).orEmpty()
                 tagsValue = data.getStringExtra(PublishMetaActivity.RESULT_TAGS).orEmpty()
                 draftFlag = data.getBooleanExtra(PublishMetaActivity.RESULT_DRAFT, false)
-                coverImage = data.getStringExtra(PublishMetaActivity.RESULT_COVER).orEmpty()
-                coverInboxId = data.getStringExtra(PublishMetaActivity.RESULT_COVER_INBOX)
-                    ?.ifBlank { null }
                 doPublish()
             }
         }
@@ -321,60 +369,64 @@ class MainActivity : Activity() {
     /**
      * 复制进私有目录。content:// 的读权限只在这次回来的瞬间有效，
      * 不复制的话，进程重启后正文里那条引用就永远指向一个读不到的文件了。
+     *
+     * 归到哪个子目录不看入口看文件本身：相册里挑到视频就进 videos，
+     * 「其他」里挑到音频就进 audio，剩下的一律进 files 当下载链接。
      */
-    private fun stageAttachment(uri: Uri, kind: MediaKind) {
-        setBusy(true, "正在暂存${kind.label}…")
+    private fun stageAttachments(uris: List<Uri>) {
+        setBusy(true, if (uris.size == 1) "正在暂存附件…" else "正在暂存 ${uris.size} 个附件…")
         worker.execute {
-            try {
-                val item = AttachmentInbox.add(this, uri, kind)
-                mainHandler.post { onStaged(kind, item) }
-            } catch (e: Exception) {
-                mainHandler.post {
-                    setBusy(false, null)
-                    showMessage("暂存失败：${e.message ?: e.javaClass.simpleName}", true)
+            val added = ArrayList<Pair<MediaKind, InboxItem>>()
+            var firstError: String? = null
+            uris.forEach { uri ->
+                try {
+                    val kind = MediaKind.of(contentResolver.getType(uri))
+                    added.add(kind to AttachmentInbox.add(this, uri, kind))
+                } catch (e: Exception) {
+                    if (firstError == null) firstError = e.message ?: e.javaClass.simpleName
                 }
             }
+            mainHandler.post { onStaged(added, firstError) }
         }
     }
 
-    private fun onStaged(kind: MediaKind, item: InboxItem) {
+    private fun onStaged(added: List<Pair<MediaKind, InboxItem>>, firstError: String?) {
         setBusy(false, null)
-        if (kind == MediaKind.COVER) {
-            coverInboxId?.let { old -> AttachmentInbox.remove(this, listOf(old)) }
-            coverInboxId = item.id
-            coverImage = ""
-            refreshInbox()
-            showMessage("封面已选：${item.displayName}，发布时上传", false)
+        if (added.isEmpty()) {
+            showMessage("暂存失败：${firstError ?: "未知原因"}", true)
             return
         }
         if (previewing) leavePreview()
-        val placeholder = AttachmentInbox.SCHEME + item.id
-        val snippet = when (kind) {
-            MediaKind.VIDEO -> "<video controls src=\"$placeholder\" style=\"max-width:100%\"></video>"
-            MediaKind.AUDIO -> "<audio controls src=\"$placeholder\" style=\"width:100%\"></audio>"
-            else -> "![]($placeholder)"
-        }
-        insertAtCursor(snippet)
-        inboxCache = inboxCache + item
+        insertAtCursor(added.joinToString("\n\n") { (kind, item) -> snippetOf(kind, item) })
+        inboxCache = inboxCache + added.map { it.second }
         updateAttachHint()
-        showMessage("已暂存 ${item.displayName}，发布时统一上传", false)
-        if (kind == MediaKind.VIDEO || kind == MediaKind.AUDIO) showHtmlHintOnce()
+        val failed = if (firstError == null) "" else "（有 1 个失败：$firstError）"
+        showMessage("已暂存 ${added.size} 个附件$failed，发布时统一上传", firstError != null)
+        if (added.any { it.first == MediaKind.VIDEO || it.first == MediaKind.AUDIO }) showHtmlHintOnce()
     }
 
-    /** 暂存区状态直接摆在附件按钮右边：用户能看见「有几个还没传」，不用自己去想 */
+    /** 正文里的占位写法：图片/视频/音频直接内嵌，「其他」就是一个可点的下载链接 */
+    private fun snippetOf(kind: MediaKind, item: InboxItem): String {
+        val placeholder = AttachmentInbox.SCHEME + item.id
+        return when (kind) {
+            MediaKind.VIDEO -> "<video controls src=\"$placeholder\" style=\"max-width:100%\"></video>"
+            MediaKind.AUDIO -> "<audio controls src=\"$placeholder\" style=\"width:100%\"></audio>"
+            // 文件名里带 ] 会把 Markdown 链接写坏，只在这一处转成全角括号
+            MediaKind.OTHER -> "[${item.displayName.replace("]", "）")}]($placeholder)"
+            else -> "![]($placeholder)"
+        }
+    }
+
+    /** 附件状态直接写在胶囊左半边：数字是正文里真正引用到的暂存附件数 */
     private fun renderAttachHint(items: List<InboxItem>) {
+        val base = getString(R.string.btn_attach)
         if (items.isEmpty()) {
-            tvAttachHint.text = ""
+            btnAttach.text = base
             return
         }
         val used = AttachmentInbox.referencedIds(etBody.text.toString()).toSet()
         val pending = items.count { used.contains(it.id) }
-        val size = AttachmentInbox.formatSize(items.sumOf { it.size })
-        tvAttachHint.text = if (pending < items.size) {
-            "待传 $pending/${items.size} · $size"
-        } else {
-            "待传 $pending 个 · $size"
-        }
+        btnAttach.text = if (pending > 0) "$base $pending" else base
     }
 
     private fun updateAttachHint() = renderAttachHint(inboxCache)
@@ -514,8 +566,12 @@ class MainActivity : Activity() {
             extraFrontMatter = if (editing) extraFrontMatter else emptyList()
         )
         val original = remotePath
-        val inbox = inboxCache.associateBy { it.id }
+        val inbox = inboxCache.associateBy { it.id }.toMutableMap()
         val stagedCover = coverInboxId
+        // inboxCache 是进发布页之前的快照，发布页里新选的封面不在其中，这里补进来
+        if (stagedCover != null && !inbox.containsKey(stagedCover)) {
+            AttachmentInbox.find(this, stagedCover)?.let { inbox[stagedCover] = it }
+        }
 
         setBusy(true, if (inbox.isEmpty()) "正在写入站点…" else "正在上传附件…")
         worker.execute {
@@ -546,6 +602,8 @@ class MainActivity : Activity() {
         loadedDate = draft.date
         loaded = true
         slugValue = draft.slug
+        // 用真正写进 front matter 的封面回填，否则紧接着再发一次时封面又变空
+        coverImage = outcome.cover
         coverInboxId = null
         extraFrontMatter = draft.extraFrontMatter
         published = true
@@ -696,6 +754,9 @@ class MainActivity : Activity() {
         btnDone.isEnabled = !busy
         // 上传/保存期间锁住附件入口，避免同一个文件被点两次
         btnAttach.isEnabled = !busy
+        val dim = if (busy) 0.5f else 1f
+        btnDone.alpha = dim
+        btnAttach.alpha = dim
         btnDone.text = when {
             busy -> if (editing) "保存中…" else "发布中…"
             else -> getString(R.string.btn_done)
@@ -712,6 +773,9 @@ class MainActivity : Activity() {
         etBody.isEnabled = enabled
         btnDone.isEnabled = enabled
         btnAttach.isEnabled = enabled
+        val dim = if (enabled) 1f else 0.5f
+        btnDone.alpha = dim
+        btnAttach.alpha = dim
     }
 
     private fun showMessage(message: String, isError: Boolean) {
@@ -758,7 +822,9 @@ class MainActivity : Activity() {
         tagsValue = prefs.getString("tags", "").orEmpty()
         draftFlag = prefs.getBoolean("draft", false)
         coverImage = prefs.getString("cover", "").orEmpty()
+        // 本地缓存里没有（用户在发布页选完封面就直接被杀了后台），再从封面临时记录里捡一次
         coverInboxId = prefs.getString("cover_inbox", "")?.ifBlank { null }
+            ?: CoverPendingStore.loadAlive(this)
         updateAttachHint()
     }
 }
