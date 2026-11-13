@@ -183,36 +183,11 @@ object PostRepository {
      * 删除一篇文章：读回旧内容 -> 删文件 -> 构建。
      * 构建失败把文件原样写回，站点不会停在“少一篇但没重建”的半截状态。
      */
-    fun delete(config: Config, path: String) {
-        val siteRoot = config.siteRoot.trimEnd('/')
-        val session = SshPublisher.open(config)
-        var sftp: ChannelSftp? = null
-        var previous: ByteArray? = null
-        try {
-            sftp = session.openChannel("sftp") as ChannelSftp
-            sftp.connect(20000)
-            previous = readOrNull(sftp, path)
-                ?: throw PublishException("远端已经没有这个文件，可能已被其它方式删除：$path")
-
-            sftp.rm(path)
-
-            val command = "cd '${SshPublisher.escape(siteRoot)}' && ${config.buildCmd}"
-            val (code, output) = SshPublisher.exec(session, command)
-            if (code != 0) {
-                rollback(sftp, path, previous)
-                try { SshPublisher.exec(session, command) } catch (_: Exception) { }
-                throw PublishException("构建失败，文章已恢复。\n\n${tail(output)}")
-            }
-        } catch (e: PublishException) {
-            throw e
-        } catch (e: Exception) {
-            try { sftp?.let { rollback(it, path, previous) } } catch (_: Exception) { }
-            throw PublishException(SshPublisher.describe(e))
-        } finally {
-            try { sftp?.disconnect() } catch (_: Exception) { }
-            try { session.disconnect() } catch (_: Exception) { }
-        }
-    }
+    /**
+     * 删除文章 = 移入回收站：md 和只被它引用的附件一起进 .blogpad-trash，然后立即构建。
+     * 真正搬东西的逻辑在 TrashStore，这里只是给列表页留一个语义入口。
+     */
+    fun delete(config: Config, path: String): DeletePostResult = TrashStore.deletePostToTrash(config, path)
 
     /**
      * 只翻转 front matter 里的 draft 一行，正文与其它字段逐字节不动。
@@ -259,7 +234,7 @@ object PostRepository {
      * 把 draft 改成目标值。返回 null 表示已是目标状态，不需要写盘。
      * 没有 front matter 的文件补一段最小头；头没闭合的视为异常文件，不猜，交回给用户去编辑器处理。
      */
-    private fun rewriteDraftFlag(raw: String, draft: Boolean): String? {
+    internal fun rewriteDraftFlag(raw: String, draft: Boolean): String? {
         val crlf = raw.contains("\r\n")
         val normalized = raw.replace("\r\n", "\n")
         val lines = normalized.split('\n').toMutableList()

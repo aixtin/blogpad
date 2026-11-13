@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.Message
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
@@ -44,7 +45,13 @@ class PostListActivity : Activity() {
     private var searchOpen = false
 
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
-    private val handler = Handler(Looper.getMainLooper())
+    /** 页面已关闭时回调直接丢弃，避免后台结果回来再弹窗把 App 弄崩 */
+    private val handler = object : Handler(Looper.getMainLooper()) {
+        override fun dispatchMessage(msg: Message) {
+            if (isFinishing || isDestroyed) return
+            super.dispatchMessage(msg)
+        }
+    }
     private val adapter = PostAdapter()
 
     /** 全量数据，搜索只过滤展示层，不动这份 */
@@ -333,11 +340,19 @@ class PostListActivity : Activity() {
 
     // ---------- 长按：改状态 / 删除 ----------
 
+    /**
+     * 长按只有一个正经用途：把草稿发出去，或者把文章下线。
+     * 「转为草稿」不再提供——它只改一行 front matter，文件和线上产物都还在，
+     * 撤不下来也不删东西，想临时下线直接用回收站，那条路才真的把文章搬走。
+     */
     private fun showActions(post: PostMeta) {
-        val toggleLabel = if (post.draft) "转为已发布" else "转为草稿"
+        if (!post.draft) {
+            confirmDelete(post)
+            return
+        }
         AlertDialog.Builder(this)
             .setTitle(post.title)
-            .setItems(arrayOf(toggleLabel, "删除文章")) { _, which ->
+            .setItems(arrayOf("转为已发布", "移入回收站")) { _, which ->
                 when (which) {
                     0 -> toggleDraft(post)
                     1 -> confirmDelete(post)
@@ -369,13 +384,18 @@ class PostListActivity : Activity() {
             return
         }
         AlertDialog.Builder(this)
-            .setTitle("删除《${post.title}》？")
-            .setMessage("会删掉服务器上的 ${post.slug}.md 并重建站点。构建失败会自动恢复原文件。")
+            .setTitle("把《${post.title}》移入回收站？")
+            .setMessage(
+                "文章会搬到站点的 .blogpad-trash 里，只被它引用的图片一起搬走，" +
+                    "然后立即重建站点，线上这篇文章当场 404。\n\n" +
+                    "随时可以去设置页的「文章」回收站把它搬回来。构建失败会自动整批退回，文章不受影响。"
+            )
             .setNegativeButton("取消", null)
-            .setPositiveButton("删除") { _, _ ->
-                mutate("正在删除…") { config ->
-                    PostRepository.delete(config, post.path)
-                    "已删除《${post.title}》"
+            .setPositiveButton("移入回收站") { _, _ ->
+                mutate("正在移入回收站…") { config ->
+                    val result = PostRepository.delete(config, post.path)
+                    val extra = if (result.attachments > 0) "，带走 ${result.attachments} 张独占图" else ""
+                    "《${post.title}》已下线$extra"
                 }
             }
             .show()
@@ -450,6 +470,7 @@ class PostListActivity : Activity() {
             view.findViewById<TextView>(R.id.tvItemTitle).text = post.title
             view.findViewById<TextView>(R.id.tvItemDate).text = post.date
 
+            // 状态只看 front matter：草稿就是线上没有，已发布就是线上有
             val status = view.findViewById<TextView>(R.id.tvItemStatus)
             status.text = if (post.draft) "草稿" else "已发布"
             status.setTextColor(
