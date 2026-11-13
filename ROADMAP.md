@@ -2,7 +2,7 @@
 
 ## Release policy
 
-Published releases: **v1.0.0**, **v1.5.0**, **v1.5.1**, **v1.6.0**, and **v1.7.0**.
+Published releases: **v1.0.0**, **v1.5.0**, **v1.5.1**, **v1.6.0**, **v1.7.0**, and **v1.8.5**.
 
 v1.1 through v1.4 are internal milestones, not releases. Each milestone must compile and install on
 a real device for self-testing, but it gets no tag, no GitHub Release, and no download-point update.
@@ -45,6 +45,18 @@ bumped only when a release actually ships.
 | v1.6.0 | Media library: attachment upload into `static/upload` with per-type subdirectories, insertion at the cursor, cover written to front matter `image`, remote images loaded in preview | Released | Video and audio need goldmark `unsafe` on the site; attachments are read fully into memory, capped at 64 MB |
 | v1.5.1 | Interaction cleanup: icon top bar, on-demand search, new-post FAB, pull to refresh; rows show date + status; collapsible metadata and a single bottom action; card-based settings, segmented auth, custom fingerprint dialog; title opens About with GitHub Releases update check and a Toast notice | Released | Publish results and long-press actions still use the existing dialogs; a bottom sheet and dark mode come later |
 | v1.7.0 | Attachments upload at publish time; the editor keeps title, body and attachments while slug, categories, tags and cover move to a separate publish screen; new media manager | Released | Picked files land in the app's private inbox and the server is untouched before publish; categories and tags are picked from the site's existing vocabulary with nothing preselected; attachments are named by content hash so the same file is never uploaded twice; orphan files are only listed, and removal goes to `.blogpad-trash/` outside the site root |
+| v1.8.5 | Cover cropping rebuilt (preset ratios, fit and free modes, safe margins, pending cover restored after process death, full-screen preview); post trash that moves deleted posts outside the site root with restore-as-draft and restore-and-build; an "other files" attachment kind; one shared helper for site links | Released | Deletion is no longer final: the post and the attachments it references move to `.blogpad-trash/` together. The long-press menu keeps only publish and delete, since flipping to draft leaves both the file and the live page in place. A blank site URL falls back to the default site with the `www.` prefix dropped, so a site never gets two addresses |
+
+## Deletion and taking posts offline (v1.8.5)
+
+Deleting a post no longer makes it vanish. The file is moved with the attachments it references, as a
+batch, into `.blogpad-trash/posts/<batch>-<slug>/` outside the site root, which leaves the long-press
+menu with just publish and delete. Flipping back to draft edits a single front matter line while the
+file and the live page stay where they are, so it is not offered as a way to take something offline.
+
+The trash has two exits: restore as draft moves the files back and resets `draft` to `true`, while
+restore and build keeps the original state and rebuilds, which suits a published post deleted by
+mistake. Purging happens only in the trash, and only after the list has been shown.
 
 ## Split rules for editing and publishing (v1.7.0)
 

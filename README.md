@@ -30,8 +30,18 @@ database, no third-party service — just SSH and a Git-based site.
 - **Media manager** — a fallback tool that lists the media library, flags files no post references
   any more, and moves unwanted ones to `.blogpad-trash/` outside the site root; restore or purge
   from there. Nothing is deleted behind your back.
+- **Post trash** — deleting a post no longer makes it vanish: the file and the attachments it
+  references are moved as a batch into `.blogpad-trash/posts/` outside the site root. Restore
+  as draft brings the files back with `draft: true`; restore and build keeps the original
+  state. The long-press menu keeps only publish and delete — flipping back to draft touches
+  one front matter line while the file and the live page stay put, so it is no longer offered
+  as a way to take a post offline.
 - **Cover image** — the cover goes to its own subdirectory and is written only into the front
   matter `image` key; it never appears in the body.
+- **Cover cropping** — picking a cover opens a crop screen with preset ratios, a fit or free
+  mode, a draggable frame that can sit flush against the image edges, and a live ratio label.
+  The pending cover survives process death and is restored on the publish screen; tapping the
+  thumbnail opens a full-screen preview.
 - **Local preview of images** — remote `https://` images and downloaded covers are decoded and
   shown in the preview; site-relative paths are reported as "visible after publish" instead of
   failing.
@@ -163,11 +173,24 @@ scoped accordingly.
 
 ```
 app/src/main/java/io/github/aixtin/blogpad/
-├── ConfigStore.kt      # configuration model, Keystore encryption, persistence
-├── PostListActivity.kt # post list: remote directory listing, row rendering, open to edit
-├── PostRepository.kt   # remote read/write, slug rename, rollback on build failure
-├── MainActivity.kt     # editor: new and edit modes, publish flow, local draft cache
-├── SettingsActivity.kt # connection and site settings, fingerprint confirmation
+├── ConfigStore.kt      # configuration model, Keystore encryption, site URL normalisation
+├── PostListActivity.kt # post list: remote listing, row rendering, open to edit, publish or delete
+├── PostRepository.kt   # remote read/write, slug rename, rollback, trash moves
+├── MainActivity.kt     # editor: new and edit modes, attachment staging, local draft cache
+├── PublishMetaActivity.kt # publish screen: slug, taxonomy, cover, cover preview
+├── AttachmentInbox.kt  # attachment staging: private storage, index, reference counting
+├── PublishFlow.kt      # publish pipeline: batch upload, placeholder swap, write md, cleanup
+├── MediaPick.kt        # image / arbitrary file picking, normalised to pending Uris
+├── MediaLibrary.kt     # library scan, orphan detection, trash (move / restore / purge)
+├── MediaManagerActivity.kt # media manager UI: files and trash
+├── TrashStore.kt       # post trash: batch folders, restore as draft or as published
+├── PostTrashActivity.kt # post trash UI: list, attachment counts, restore and purge
+├── CoverCrop.kt        # cover decoding, ratio-aware cropping, output
+├── CoverCropActivity.kt # crop screen: preset ratios, fit or free, hand-off
+├── CoverCropView.kt    # crop view: safe margins, drag inside frame, gesture exclusion
+├── CoverRatioStore.kt  # remembers the last crop ratio
+├── CoverPendingStore.kt # pending cover stored on disk until publish
+├── SettingsActivity.kt # connection and site settings, fingerprint, media and trash entries
 └── SshPublisher.kt     # SFTP upload, remote build, rollback, front matter rendering
 ```
 
@@ -188,6 +211,7 @@ app/src/main/java/io/github/aixtin/blogpad/
 | 1.5.1 | 2026-11-11 | 4 | Interaction rework: icon top bar, on-demand search, new-post FAB, pull to refresh; rows show date + status; collapsible post metadata and a single bottom action; card-based settings, segmented auth, custom fingerprint dialog; tapping the title opens About, which checks GitHub Releases and announces new versions with a Toast |
 | 1.6.0 | 2026-11-13 | 5 | Media library: attachment upload over SFTP into `static/upload` with per-type subdirectories, cursor-relative insertion, cover image written to front matter `image`, and remote image preview |
 | 1.7.0 | 2026-11-13 | 6 | Attachments are uploaded at publish time instead of on pick (private inbox plus content-hash names, so the same file is never uploaded twice); the editor keeps only title, body and attachments while slug, categories, tags and cover move to a separate publish screen fed by the site's existing vocabulary; new media manager with orphan detection and a trash folder outside the site root |
+| 1.8.5 | 2026-11-14 | 12 | Cover cropping rebuilt: preset ratios, fit and free modes, safe margins, survival across process death, full-screen cover preview; new post trash that moves deleted posts into batch folders outside the site root with restore-as-draft and restore-and-build, and no more draft toggle in the long-press menu; attachments gained an "other files" kind defaulting to `files`; site links resolve through one helper that falls back to the default site and drops the `www.` prefix |
 
 The release procedure lives in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md).
 
