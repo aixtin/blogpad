@@ -15,4 +15,12 @@
     <string name="cd_new_post">新建文章</string>
     <string name="cd_back">返回</string>
     <string name="cd_open_browser">在浏览器中打开</string>
+    <string name="btn_attach">+ 附件</string>
+    <string name="btn_done">完成</string>
+    <string name="btn_save">保存</string>
+    <string name="publish_title">发布文章</string>
+    <string name="publish_header_edit">保存文章</string>
+    <string name="cover_label">封面</string>
+    <string name="cd_remove_cover">移除封面</string>
+    <string name="btn_publish_and_save">保存并发布</string>
 </resources>

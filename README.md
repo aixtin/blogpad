@@ -14,14 +14,22 @@ database, no third-party service — just SSH and a Git-based site.
 - **Edit existing posts** — the remote `.md` is loaded back into the form and saved in place; a
   changed slug renames the remote file and removes the old one; front matter keys the app does not
   own are preserved verbatim.
-- **Write and publish from the phone** — title, slug, categories, tags, body, and a draft toggle;
-  slug, categories and tags stay collapsed behind a one-line summary until tapped.
+- **Write, then publish** — the editor holds only the title, the body and the attachments. Tapping
+  Done opens a separate publish screen for slug, categories, tags and the cover. Categories and
+  tags are offered from what the site already uses and nothing is preselected — a new post is not
+  a copy of the last one.
 - **Markdown with Hugo front matter** — generated automatically (`title`, `date`, `draft`, `slug`,
   `categories`, `tags`, and `image` when a cover is picked), so the file drops straight into a
   Hugo site.
-- **Attachments** — pick an image, video or audio file and it is uploaded by SFTP into a media
-  directory under the site's `static/` tree, then referenced at the cursor as a root-relative
-  Markdown image or an HTML media tag. Names are `<slug>-<timestamp>.<ext>`, so nothing collides.
+- **Attachments wait for publish** — a picked file is copied into the app's private inbox and the
+  body gets only a placeholder at the cursor; the server is untouched until you publish. Then every
+  file goes up in one SFTP session, the placeholders are rewritten to root-relative URLs, the `.md`
+  is written, and only after a successful build are the local copies dropped. Names are
+  `<slug>-<contenthash>.<ext>`: picking the same image twice uploads it once, and a retry after a
+  failed publish hits the file already on the server.
+- **Media manager** — a fallback tool that lists the media library, flags files no post references
+  any more, and moves unwanted ones to `.blogpad-trash/` outside the site root; restore or purge
+  from there. Nothing is deleted behind your back.
 - **Cover image** — the cover goes to its own subdirectory and is written only into the front
   matter `image` key; it never appears in the body.
 - **Local preview of images** — remote `https://` images and downloaded covers are decoded and
@@ -34,7 +42,8 @@ database, no third-party service — just SSH and a Git-based site.
 - **Automatic rollback** — if the remote build command fails, the uploaded file is removed or
   restored to its previous content, so a broken build never leaves a half-published post behind.
 - **Draft mode** — writes `draft: true` and skips link generation.
-- **Draft auto-save** — whatever is typed is cached locally and restored on next launch.
+- **Draft auto-save** — a new post is cached locally as you type and restored on next launch; the
+  cache is cleared once the post is published.
 - **Encrypted configuration** — host, credentials, and private key are serialized to JSON,
   encrypted with AES-256-GCM using a key held in Android Keystore, and stored in
   `SharedPreferences`. Android backup is disabled for the app.
@@ -111,13 +120,20 @@ Notes:
 ## Usage
 
 1. The app opens on the post list. Tap **New** to start a post, or tap a row to edit it.
-2. Fill in title and body; slug, categories, and tags are optional.
-3. Leave the slug empty to generate one from a timestamp. Changing the slug of an existing post
-   renames the remote file on save and removes the old one.
-4. Check **Save as draft** to write `draft: true` and skip the link.
-5. Tap **Publish** (**Save** when editing). The status line reports the remote path, the post URL,
-   and the tail of the build output.
-6. On success the link can be copied to the clipboard with one tap.
+2. The editor holds only the title, the body and **+ Attach**. A picked image, video or audio file
+   is copied into the app's private inbox and the body gets a single placeholder at the cursor;
+   the server is untouched, so swapping a picture ten times costs nothing.
+3. Tap **Done** to open the publish screen: the slug is offered as a candidate generated from the
+   title (collapsed, editable when expanded); categories and tags are picked from what the site
+   already uses, with **+ New** at the end of each row; one cover image, written only into front
+   matter `image`.
+4. **Save as draft** writes `draft: true` and skips the link. **Publish** first uploads every
+   attachment in one session, rewrites the placeholders to root-relative URLs, then writes the
+   `.md` and runs the build on the server.
+5. A failed build rolls the post file back; attachments already uploaded are matched by content
+   hash on retry, so nothing is uploaded twice.
+6. On success the status line reports the remote path, the post URL and the tail of the build
+   output, the link can be copied with one tap, and the inbox copies are dropped.
 
 ## Build from source
 
@@ -169,8 +185,9 @@ app/src/main/java/io/github/aixtin/blogpad/
 |---------|------|-------------|-------|
 | 1.0.0 | 2026-11-09 | 1 | First release: single-screen editor with write, publish, draft, and rollback |
 | 1.5.0 | 2026-11-10 | 3 | Post list, editing existing posts, categories and tags, housekeeping, structural preview |
-| 1.6.0 | 2026-11-13 | 5 | Media library: attachment upload over SFTP into `static/upload` with per-type subdirectories, cursor-relative insertion, cover image written to front matter `image`, and remote image preview |
 | 1.5.1 | 2026-11-11 | 4 | Interaction rework: icon top bar, on-demand search, new-post FAB, pull to refresh; rows show date + status; collapsible post metadata and a single bottom action; card-based settings, segmented auth, custom fingerprint dialog; tapping the title opens About, which checks GitHub Releases and announces new versions with a Toast |
+| 1.6.0 | 2026-11-13 | 5 | Media library: attachment upload over SFTP into `static/upload` with per-type subdirectories, cursor-relative insertion, cover image written to front matter `image`, and remote image preview |
+| 1.7.0 | 2026-11-13 | 6 | Attachments are uploaded at publish time instead of on pick (private inbox plus content-hash names, so the same file is never uploaded twice); the editor keeps only title, body and attachments while slug, categories, tags and cover move to a separate publish screen fed by the site's existing vocabulary; new media manager with orphan detection and a trash folder outside the site root |
 
 The release procedure lives in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md).
 

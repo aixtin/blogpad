@@ -2,7 +2,7 @@
 
 ## Release policy
 
-Published releases: **v1.0.0**, **v1.5.0**, **v1.5.1**, and **v1.6.0**.
+Published releases: **v1.0.0**, **v1.5.0**, **v1.5.1**, **v1.6.0**, and **v1.7.0**.
 
 v1.1 through v1.4 are internal milestones, not releases. Each milestone must compile and install on
 a real device for self-testing, but it gets no tag, no GitHub Release, and no download-point update.
@@ -44,13 +44,31 @@ bumped only when a release actually ships.
 | v1.5 | Preview: structural read-only render, toggle in the top bar, cursor position preserved, "open in browser" escape hatch | Released | Renders headings, lists, quotes, fenced code, tables, images and links; the toggle keeps scroll offset and cursor; the browser button shows only when the post has a live URL |
 | v1.6.0 | Media library: attachment upload into `static/upload` with per-type subdirectories, insertion at the cursor, cover written to front matter `image`, remote images loaded in preview | Released | Video and audio need goldmark `unsafe` on the site; attachments are read fully into memory, capped at 64 MB |
 | v1.5.1 | Interaction cleanup: icon top bar, on-demand search, new-post FAB, pull to refresh; rows show date + status; collapsible metadata and a single bottom action; card-based settings, segmented auth, custom fingerprint dialog; title opens About with GitHub Releases update check and a Toast notice | Released | Publish results and long-press actions still use the existing dialogs; a bottom sheet and dark mode come later |
+| v1.7.0 | Attachments upload at publish time; the editor keeps title, body and attachments while slug, categories, tags and cover move to a separate publish screen; new media manager | Released | Picked files land in the app's private inbox and the server is untouched before publish; categories and tags are picked from the site's existing vocabulary with nothing preselected; attachments are named by content hash so the same file is never uploaded twice; orphan files are only listed, and removal goes to `.blogpad-trash/` outside the site root |
 
-## Interaction rules for editing and preview (v1.5.1)
+## Split rules for editing and publishing (v1.7.0)
 
 The post-list top bar keeps only search and settings, creation lives in the bottom-right FAB, and
-refresh happens only through pull-to-refresh. The editor collapses slug, categories and tags behind
-a one-line summary that starts closed; the bottom bar keeps just the draft toggle and one primary
-action. Expansion state is not persisted and resets when the screen closes.
+refresh happens only through pull-to-refresh.
+
+**The editor is only about writing**: back, title, body, **+ Attach**, and one **Done** in the top
+right. No slug, categories, tags, cover or draft toggle. A picked file is copied into the app's
+private inbox and the body gets a single placeholder at the cursor; the server is not touched until
+publish. Swapping a picture or a video ten times leaves nothing behind on the remote side.
+
+**The publish screen owns the metadata**: tapping Done opens a separate screen. The slug is offered
+as a candidate generated from the title, collapsed, editable when expanded; categories and tags are
+picked from what the site already uses with **+ New** at the end of each row, and **nothing is
+preselected** — a new post is not a copy of the previous one; one cover image goes only into front
+matter `image`. **Save as draft** and **Publish** sit at the bottom.
+
+A draft is not validated for categories or tags; all of it may be empty.
+
+**Why upload is deferred to publish**: uploading on pick turns "pick, then change your mind" into
+remote leftovers, and a clever naming scheme only cleans up after the damage. Deferring it means the
+server only ever sees the final result. The price is that the inbox has to be visible and
+clearable, and placeholders have to be recognised when the referenced file is gone (a stale
+placeholder must block publish instead of producing a dead link).
 
 Default mode depends on the state of the post, not on a global preference:
 

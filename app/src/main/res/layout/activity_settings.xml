@@ -600,6 +600,17 @@
                     android:text="视频和音频插入的是 HTML 标签。Hugo 默认会丢弃正文里的原始 HTML，需要在站点配置里开启 markup.goldmark.renderer.unsafe = true，否则构建后只剩一段省略注释。图片和封面不受影响。"
                     android:textColor="@color/text_hint"
                     android:textSize="11sp" />
+
+                <Button
+                    android:id="@+id/btnMediaManager"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_outline_button"
+                    android:text="打开附件管家"
+                    android:textAllCaps="false"
+                    android:textColor="@color/brand"
+                    android:textSize="14sp" />
             </LinearLayout>
 
             <!-- 安全说明 -->

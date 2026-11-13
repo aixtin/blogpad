@@ -52,7 +52,6 @@ object SshPublisher {
             if (code != 0) {
                 Triple(false, "命令执行失败（exit=$code）: ${out.trim()}", null)
             } else {
-                val head = out.lines().firstOrNull { it.isNotBlank() } ?: ""
                 val sys = out.lines().lastOrNull { it.isNotBlank() } ?: ""
                 Triple(true, "连接成功  $sys", null)
             }
@@ -80,10 +79,10 @@ object SshPublisher {
         val remotePath = "$remoteDir/$slug.md"
         val markdown = renderMarkdown(article.copy(slug = slug))
 
-        var session: Session? = null
         val repo = FingerprintRepository(config)
-        try {
-            session = openSession(config, repo)
+        // 连不上就直接抛，后面 finally 拿到的 session 一定是连上的那个
+        val session = try {
+            openSession(config, repo)
         } catch (e: Exception) {
             val fp = repo.pendingFingerprint()
             throw PublishException(
@@ -95,7 +94,7 @@ object SshPublisher {
         var sftp: ChannelSftp? = null
         var previousContent: ByteArray? = null
         try {
-            val (dirCode, dirOut) = exec(session, "test -d '${escape(remoteDir)}' && echo YES || echo NO")
+            val (_, dirOut) = exec(session, "test -d '${escape(remoteDir)}' && echo YES || echo NO")
             if (!dirOut.contains("YES")) {
                 throw PublishException("远端目录不存在：$remoteDir")
             }
@@ -129,7 +128,7 @@ object SshPublisher {
             throw PublishException(describe(e))
         } finally {
             try { sftp?.disconnect() } catch (_: Exception) { }
-            try { session?.disconnect() } catch (_: Exception) { }
+            try { session.disconnect() } catch (_: Exception) { }
         }
     }
 
@@ -146,6 +145,14 @@ object SshPublisher {
     /** 一个已上传附件：远端绝对路径、写进 Markdown 的站内路径、文件名 */
     data class MediaRef(val remotePath: String, val urlPath: String, val fileName: String)
 
+    /** 一个待上传的本地附件：id 用来回填正文占位，file 是私有目录里的暂存副本 */
+    data class MediaUpload(
+        val id: String,
+        val kind: MediaKind,
+        val file: java.io.File,
+        val displayName: String
+    )
+
     /**
      * 建目录。JSch 的 put 不会自动建父目录，父目录缺失会直接失败，所以上传前必须先来这一趟。
      * mkdir -p 幂等：目录已存在不算错，不会重复创建，也不会动已有内容。
@@ -158,39 +165,54 @@ object SshPublisher {
     }
 
     /**
-     * 上传附件：先确保目录存在，再按 <slug>-<时间戳>.<ext> 落盘，返回可直接写进 Markdown 的站内路径。
+     * 批量上传附件：一次 SSH 会话把这篇要用的附件全部送上去。
+     * 逐张重连的握手开销比传文件本身还贵，而附件天然成组出现，没理由按张连。
+     *
+     * 命名带内容哈希：同一个文件重复选不会传成两份，上次传到一半重试也能命中已有文件。
      * 只写文件、不触发构建——附件先落地，正文后发布，顺序反了正文里会挂 404。
      */
-    fun uploadMedia(
+    fun uploadMediaBatch(
         config: Config,
-        kind: MediaKind,
-        data: ByteArray,
-        displayName: String?,
-        slugHint: String
-    ): MediaRef {
+        slugHint: String,
+        items: List<MediaUpload>,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }
+    ): Map<String, MediaRef> {
+        if (items.isEmpty()) return emptyMap()
         val siteRoot = config.siteRoot.trimEnd('/')
         if (siteRoot.isEmpty()) throw PublishException("请先在设置里填写站点根目录")
         config.mediaReady()?.let { throw PublishException(it) }
 
         val slug = resolveSlug(slugHint)
-        val stamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("Asia/Shanghai")
-        }.format(Date())
-        val ext = safeExtension(displayName, kind)
-        val fileName = "$slug-$stamp.$ext"
-
-        val remoteDir = "$siteRoot/${config.mediaDir(kind)}"
-        val remotePath = "$remoteDir/$fileName"
-        val urlPath = "${config.mediaUrlDir(kind)}/$fileName"
-
+        val result = LinkedHashMap<String, MediaRef>()
         val session = open(config)
         var sftp: ChannelSftp? = null
         try {
-            ensureDir(session, remoteDir)
+            items.map { it.kind }.distinct().forEach { kind ->
+                ensureDir(session, "$siteRoot/${config.mediaDir(kind)}")
+            }
             sftp = session.openChannel("sftp") as ChannelSftp
             sftp.connect(CONNECT_TIMEOUT_MS)
-            sftp.put(ByteArrayInputStream(data), remotePath)
-            return MediaRef(remotePath, urlPath, fileName)
+
+            items.forEachIndexed { index, item ->
+                val bytes = item.file.readBytes()
+                val ext = safeExtension(item.displayName, item.kind)
+                val hash = contentHash(bytes).take(8)
+                // 封面用 slug 定名、内容哈希收尾：换封面时同族旧文件会被清掉，远端只留一张
+                val fileName =
+                    if (item.kind == MediaKind.COVER) "$slug-cover-$hash.$ext" else "$slug-$hash.$ext"
+                val remoteDir = "$siteRoot/${config.mediaDir(item.kind)}"
+                val remotePath = "$remoteDir/$fileName"
+                val urlPath = "${config.mediaUrlDir(item.kind)}/$fileName"
+
+                if (item.kind == MediaKind.COVER) pruneOldCovers(sftp, remoteDir, slug, fileName)
+                // 同大小同名视为同一份内容，跳过重传
+                if (!existsWithSize(sftp, remotePath, bytes.size.toLong())) {
+                    sftp.put(ByteArrayInputStream(bytes), remotePath)
+                }
+                result[item.id] = MediaRef(remotePath, urlPath, fileName)
+                onProgress(index + 1, items.size)
+            }
+            return result
         } catch (e: PublishException) {
             throw e
         } catch (e: Exception) {
@@ -202,6 +224,42 @@ object SshPublisher {
     }
 
     /** 只认字母数字扩展名，最长 6 位；拿不到就按类型给个保守默认 */
+    /** 内容指纹，只用来做文件名和去重判断，不参与鉴权 */
+    private fun contentHash(data: ByteArray): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(data)
+        val builder = StringBuilder(digest.size * 2)
+        for (byte in digest) {
+            val value = byte.toInt() and 0xFF
+            builder.append(HEX[value ushr 4]).append(HEX[value and 0x0F])
+        }
+        return builder.toString()
+    }
+
+    private val HEX = "0123456789abcdef".toCharArray()
+
+    private fun existsWithSize(sftp: ChannelSftp, path: String, size: Long): Boolean = try {
+        val attrs = sftp.lstat(path)
+        !attrs.isDir && attrs.size == size
+    } catch (_: Exception) {
+        false
+    }
+
+    /**
+     * 换封面时清掉同一篇文章的旧封面。
+     * 只在封面目录里动，且只认 "<slug>-cover" 开头、以扩展名收尾的文件，
+     * 不会碰到别的文章的封面，也不会碰到正文附件。
+     */
+    private fun pruneOldCovers(sftp: ChannelSftp, remoteDir: String, slug: String, keep: String) {
+        val pattern = Regex("^" + Regex.escape(slug) + "-cover(?:-[0-9a-f]{8})?\\.[a-z0-9]{1,6}$")
+        val entries = try { sftp.ls(remoteDir) } catch (_: Exception) { return }
+        for (entry in entries) {
+            val name = entry.filename
+            if (name == keep || entry.attrs.isDir) continue
+            if (!pattern.matches(name)) continue
+            try { sftp.rm("$remoteDir/$name") } catch (_: Exception) { }
+        }
+    }
+
     private fun safeExtension(displayName: String?, kind: MediaKind): String {
         val fromName = displayName
             ?.substringAfterLast('.', "")
@@ -227,7 +285,7 @@ object SshPublisher {
         } catch (e: Exception) {
             val fp = repo.pendingFingerprint()
             throw PublishException(
-                if (fp != null) "这台主机还没有被信任（指纹 \$fp），请先到设置里点一次“测试连接”"
+                if (fp != null) "这台主机还没有被信任（指纹 $fp），请先到设置里点一次“测试连接”"
                 else describe(e)
             )
         }
@@ -384,7 +442,7 @@ object SshPublisher {
         override fun getHostKey(host: String?, type: String?): Array<HostKey> = emptyArray()
 
         override fun check(host: String?, key: ByteArray): Int {
-            if (host == null || key == null) return HostKeyRepository.NOT_INCLUDED
+            if (host == null) return HostKeyRepository.NOT_INCLUDED
             val hostKey = try { HostKey(host, key) } catch (_: Exception) { return HostKeyRepository.NOT_INCLUDED }
             val fingerprint = try { hostKey.getFingerPrint(probe) } catch (_: Exception) { return HostKeyRepository.NOT_INCLUDED }
             val trusted = config.hostFingerprint.trim()

@@ -82,6 +82,7 @@ class SettingsActivity : Activity() {
         findViewById<Button>(R.id.btnImportKey).setOnClickListener { pickKeyFile() }
         findViewById<Button>(R.id.btnClearKey).setOnClickListener { etPrivateKey.setText("") }
         btnTest.setOnClickListener { runTest() }
+        findViewById<Button>(R.id.btnMediaManager).setOnClickListener { openMediaManager() }
 
         rbKey.setOnClickListener { selectAuth(true) }
         rbPassword.setOnClickListener { selectAuth(false) }
@@ -165,6 +166,22 @@ class SettingsActivity : Activity() {
         ConfigStore.save(this, next)
         Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show()
         finish()
+    }
+
+    /** 进附件管家前先把当前输入落盘，免得管家读到上一版配置 */
+    private fun openMediaManager() {
+        val next = collectConfig()
+        val blocker = next.connectionReady() ?: next.siteReady() ?: next.mediaReady()
+        if (blocker != null) {
+            Toast.makeText(this, blocker, Toast.LENGTH_LONG).show()
+            return
+        }
+        if (next.host != config.host || next.port != config.port) {
+            next.hostFingerprint = ""
+        }
+        ConfigStore.save(this, next)
+        config = next
+        startActivity(Intent(this, MediaManagerActivity::class.java))
     }
 
     private fun selectAuth(useKey: Boolean) {

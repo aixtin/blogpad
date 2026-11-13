@@ -51,6 +51,13 @@ data class Config(
         return if (mediaGrouping) "$root/${mediaSubdir(kind)}" else root
     }
 
+    /** 附件库的站内 URL 根（根相对），由 mediaRoot 推导：static/upload -> /upload */
+    fun mediaUrlRoot(): String {
+        val physical = mediaRoot.trim().trim('/').ifEmpty { DEFAULT_MEDIA_ROOT }
+        val rel = if (physical == "static") "" else physical.removePrefix("static").trim('/')
+        return if (rel.isEmpty()) "" else "/$rel"
+    }
+
     /** 该附件的站内 URL 目录（根相对），由物理目录推导：static/upload/images -> /upload/images */
     fun mediaUrlDir(kind: MediaKind): String {
         val physical = mediaDir(kind)
