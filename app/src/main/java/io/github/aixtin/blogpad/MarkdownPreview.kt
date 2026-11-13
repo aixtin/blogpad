@@ -1,7 +1,10 @@
 package io.github.aixtin.blogpad
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
+import android.net.Uri
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.TextPaint
@@ -10,12 +13,18 @@ import android.text.style.BackgroundColorSpan
 import android.text.style.ClickableSpan
 import android.text.style.StyleSpan
 import android.text.style.TypefaceSpan
+import android.util.LruCache
 import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.Executors
 
 /**
  * 只读结构预览：把 Markdown 源码渲染成块级视图。
@@ -250,6 +259,65 @@ object MarkdownPreview {
             }
         }
 
+    // ---------- 图片加载 ----------
+
+    /** 预览图缓存按字节计，12MB 上限足够滚动十几张封面 */
+    private val imageCache = object : LruCache<String, Bitmap>(12 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+    }
+
+    /** 固定 3 线程：够滚动时预取，又不会因为长文里几十张图把设备拖死 */
+    private val imagePool = Executors.newFixedThreadPool(3)
+
+    /**
+     * 取图。远端走 HTTP，本地走 file:// / content://。
+     * 先读字节再按 inSampleSize 降采样解码——直接 decodeStream 大图会 OOM。
+     */
+    private fun fetchBitmap(context: android.content.Context, url: String, maxPx: Int): Bitmap? {
+        imageCache.get(url)?.let { return it }
+        val bytes = readBytes(context, url) ?: return null
+
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        val longest = maxOf(bounds.outWidth, bounds.outHeight)
+        var sample = 1
+        while (longest / sample > maxPx && sample < 16) sample *= 2
+
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts) ?: return null
+        imageCache.put(url, bitmap)
+        return bitmap
+    }
+
+    private fun readBytes(context: android.content.Context, url: String): ByteArray? = try {
+        when {
+            url.startsWith("http://") || url.startsWith("https://") -> {
+                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 8000
+                    readTimeout = 8000
+                    instanceFollowRedirects = true
+                    setRequestProperty("User-Agent", "BlogPad/1.6 (Android)")
+                }
+                try {
+                    if (conn.responseCode !in 200..299) null else conn.inputStream.use { it.readBytes() }
+                } finally {
+                    conn.disconnect()
+                }
+            }
+            url.startsWith("content://") ->
+                context.contentResolver.openInputStream(Uri.parse(url))?.use { it.readBytes() }
+            url.startsWith("file://") ->
+                Uri.parse(url).path?.let { File(it).takeIf { f -> f.isFile }?.readBytes() }
+            else -> null
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    /** 站内路径只有发布后才存在，本地预览无法解码，走占位提示而不是当成加载失败 */
+    private fun isSitePath(url: String): Boolean =
+        url.startsWith("/") && !url.startsWith("//")
+
     // ---------- 块视图 ----------
 
     private class View1(
@@ -381,13 +449,51 @@ object MarkdownPreview {
         }
 
         fun imageBlock(alt: String, url: String) {
+            val caption = if (alt.isBlank()) "图片" else alt
+            if (isSitePath(url) || url.isBlank()) {
+                // 站内路径要等构建后才生效，这里只报路径对不对，不伪装成一张图
+                val holder = LinearLayout(box.context)
+                holder.orientation = LinearLayout.VERTICAL
+                holder.setBackgroundColor(Color.parseColor("#EEF0F3"))
+                holder.setPadding(dp(12), dp(10), dp(12), dp(10))
+                holder.addView(label("站内图片 · $caption", 12.5f, "#3C4149"))
+                holder.addView(label(url.ifBlank { "（缺少路径）"} + " · 发布后可见", 11.5f, C_MUTED))
+                attach(holder, 10)
+                return
+            }
+
             val holder = LinearLayout(box.context)
             holder.orientation = LinearLayout.VERTICAL
-            holder.setBackgroundColor(Color.parseColor("#EEF0F3"))
-            holder.setPadding(dp(12), dp(10), dp(12), dp(10))
-            holder.addView(label("图片 · ${if (alt.isBlank()) "无替代文本" else alt}", 12.5f, "#3C4149"))
-            holder.addView(label(url, 11.5f, C_MUTED))
+            holder.addView(label(caption, 11.5f, C_MUTED))
+
+            val image = ImageView(box.context)
+            image.scaleType = ImageView.ScaleType.FIT_CENTER
+            image.adjustViewBounds = true
+            image.setBackgroundColor(Color.parseColor("#EEF0F3"))
+            holder.addView(image, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(120)
+            ))
             attach(holder, 10)
+
+            val target = (360 * density).toInt().coerceAtLeast(540)
+            imagePool.execute {
+                val bitmap = runCatching { fetchBitmap(box.context, url, target) }.getOrNull()
+                image.post {
+                    // 预览可能已经切走重建，view 脱树后不再回填，避免脏写
+                    if (image.parent == null) return@post
+                    if (bitmap != null) {
+                        image.layoutParams = LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                        )
+                        image.setImageBitmap(bitmap)
+                        image.setBackgroundColor(Color.TRANSPARENT)
+                    } else {
+                        holder.addView(label("无法加载：$url", 11f, C_MUTED))
+                    }
+                }
+            }
         }
 
         fun divider() {

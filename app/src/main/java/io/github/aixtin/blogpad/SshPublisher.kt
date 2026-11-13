@@ -141,6 +141,84 @@ object SshPublisher {
         }
     }
 
+    // ---------- 附件上传 ----------
+
+    /** 一个已上传附件：远端绝对路径、写进 Markdown 的站内路径、文件名 */
+    data class MediaRef(val remotePath: String, val urlPath: String, val fileName: String)
+
+    /**
+     * 建目录。JSch 的 put 不会自动建父目录，父目录缺失会直接失败，所以上传前必须先来这一趟。
+     * mkdir -p 幂等：目录已存在不算错，不会重复创建，也不会动已有内容。
+     */
+    internal fun ensureDir(session: Session, remoteDir: String) {
+        val (code, out) = exec(session, "mkdir -p '${escape(remoteDir)}' && echo BLOGPAD_MKDIR_OK")
+        if (code != 0 || !out.contains("BLOGPAD_MKDIR_OK")) {
+            throw PublishException("无法创建远端目录：$remoteDir\n\n${tail(out)}")
+        }
+    }
+
+    /**
+     * 上传附件：先确保目录存在，再按 <slug>-<时间戳>.<ext> 落盘，返回可直接写进 Markdown 的站内路径。
+     * 只写文件、不触发构建——附件先落地，正文后发布，顺序反了正文里会挂 404。
+     */
+    fun uploadMedia(
+        config: Config,
+        kind: MediaKind,
+        data: ByteArray,
+        displayName: String?,
+        slugHint: String
+    ): MediaRef {
+        val siteRoot = config.siteRoot.trimEnd('/')
+        if (siteRoot.isEmpty()) throw PublishException("请先在设置里填写站点根目录")
+        config.mediaReady()?.let { throw PublishException(it) }
+
+        val slug = resolveSlug(slugHint)
+        val stamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Shanghai")
+        }.format(Date())
+        val ext = safeExtension(displayName, kind)
+        val fileName = "$slug-$stamp.$ext"
+
+        val remoteDir = "$siteRoot/${config.mediaDir(kind)}"
+        val remotePath = "$remoteDir/$fileName"
+        val urlPath = "${config.mediaUrlDir(kind)}/$fileName"
+
+        val session = open(config)
+        var sftp: ChannelSftp? = null
+        try {
+            ensureDir(session, remoteDir)
+            sftp = session.openChannel("sftp") as ChannelSftp
+            sftp.connect(CONNECT_TIMEOUT_MS)
+            sftp.put(ByteArrayInputStream(data), remotePath)
+            return MediaRef(remotePath, urlPath, fileName)
+        } catch (e: PublishException) {
+            throw e
+        } catch (e: Exception) {
+            throw PublishException(describe(e))
+        } finally {
+            try { sftp?.disconnect() } catch (_: Exception) { }
+            try { session.disconnect() } catch (_: Exception) { }
+        }
+    }
+
+    /** 只认字母数字扩展名，最长 6 位；拿不到就按类型给个保守默认 */
+    private fun safeExtension(displayName: String?, kind: MediaKind): String {
+        val fromName = displayName
+            ?.substringAfterLast('.', "")
+            ?.lowercase(Locale.US)
+            ?.filter { it.isLetterOrDigit() }
+            ?.take(6)
+            .orEmpty()
+        if (fromName.isNotEmpty() && fromName.length <= 6) return fromName
+        return when (kind) {
+            MediaKind.IMAGE -> "jpg"
+            MediaKind.VIDEO -> "mp4"
+            MediaKind.AUDIO -> "mp3"
+            MediaKind.COVER -> "jpg"
+        }
+    }
+
+
     /** 建立连接；失败时把原因包成 PublishException 供 UI 直接展示 */
     internal fun open(config: Config): Session {
         val repo = FingerprintRepository(config)

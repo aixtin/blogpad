@@ -10,6 +10,7 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -34,6 +35,9 @@ class SettingsActivity : Activity() {
     private lateinit var etBuildCmd: EditText
     private lateinit var etSiteUrl: EditText
     private lateinit var etLinkTemplate: EditText
+    private lateinit var etMediaRoot: EditText
+    private lateinit var cbMediaGrouping: CheckBox
+    private lateinit var etMediaSubdirs: EditText
     private lateinit var btnTest: Button
     private lateinit var tvTestStatus: TextView
 
@@ -64,6 +68,9 @@ class SettingsActivity : Activity() {
         etBuildCmd = findViewById(R.id.etBuildCmd)
         etSiteUrl = findViewById(R.id.etSiteUrl)
         etLinkTemplate = findViewById(R.id.etLinkTemplate)
+        etMediaRoot = findViewById(R.id.etMediaRoot)
+        cbMediaGrouping = findViewById(R.id.cbMediaGrouping)
+        etMediaSubdirs = findViewById(R.id.etMediaSubdirs)
         btnTest = findViewById(R.id.btnTest)
         tvTestStatus = findViewById(R.id.tvTestStatus)
 
@@ -99,6 +106,18 @@ class SettingsActivity : Activity() {
         etBuildCmd.setText(c.buildCmd)
         etSiteUrl.setText(c.siteUrl)
         etLinkTemplate.setText(c.linkTemplate)
+        etMediaRoot.setText(c.mediaRoot)
+        cbMediaGrouping.isChecked = c.mediaGrouping
+        etMediaSubdirs.setText(c.mediaSubdirs)
+        syncMediaInputs()
+        cbMediaGrouping.setOnCheckedChangeListener { _, _ -> syncMediaInputs() }
+    }
+
+    /** 关掉分类后子目录名无意义，直接置灰，免得用户以为填了不生效 */
+    private fun syncMediaInputs() {
+        val on = cbMediaGrouping.isChecked
+        etMediaSubdirs.isEnabled = on
+        etMediaSubdirs.alpha = if (on) 1f else 0.4f
     }
 
     private fun collectConfig(): Config {
@@ -116,7 +135,11 @@ class SettingsActivity : Activity() {
             buildCmd = etBuildCmd.text.toString().trim().ifEmpty { "hugo --gc --minify" },
             siteUrl = etSiteUrl.text.toString().trim(),
             linkTemplate = etLinkTemplate.text.toString().trim(),
-            hostFingerprint = config.hostFingerprint
+            hostFingerprint = config.hostFingerprint,
+            mediaRoot = etMediaRoot.text.toString().trim().ifEmpty { Config.DEFAULT_MEDIA_ROOT },
+            mediaGrouping = cbMediaGrouping.isChecked,
+            mediaSubdirs = etMediaSubdirs.text.toString().trim()
+                .ifEmpty { Config.DEFAULT_MEDIA_SUBDIRS }
         )
     }
 
@@ -128,6 +151,11 @@ class SettingsActivity : Activity() {
         }
         next.siteReady()?.let {
             Toast.makeText(this, it, Toast.LENGTH_SHORT).show()
+            return
+        }
+        next.mediaReady()?.let {
+            Toast.makeText(this, it, Toast.LENGTH_LONG).show()
+            etMediaRoot.requestFocus()
             return
         }
         // 连接目标变更后旧指纹失效

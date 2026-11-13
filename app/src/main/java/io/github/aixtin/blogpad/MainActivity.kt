@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.OpenableColumns
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
@@ -34,6 +35,9 @@ class MainActivity : Activity() {
 
     companion object {
         const val EXTRA_PATH = "remote_path"
+        private const val REQ_PICK_MEDIA = 1001
+        /** 单个附件上限。手机内存里要先整个读出来再上传，超过这个量级容易 OOM */
+        private const val MAX_ATTACHMENT_BYTES = 64 * 1024 * 1024
     }
 
     private lateinit var etTitle: EditText
@@ -77,6 +81,12 @@ class MainActivity : Activity() {
 
     private var remotePath: String? = null
     private var loadedDate: String? = null
+    /** front matter 的 image 字段，空串表示这篇不设封面 */
+    private var coverImage: String = ""
+    /** 文件选择器只会回一个结果，用它在返回时还原用户点的是哪一类 */
+    private var pendingKind: MediaKind? = null
+    private lateinit var btnAttach: View
+    private lateinit var tvCover: TextView
     private var extraFrontMatter: List<String> = emptyList()
     private var loaded = false
     private var snapshot: String = ""
@@ -111,6 +121,8 @@ class MainActivity : Activity() {
         scrollView = findViewById(R.id.scrollView)
         editPane = findViewById(R.id.editPane)
         previewPane = findViewById(R.id.previewPane)
+        btnAttach = findViewById(R.id.btnAttach)
+        tvCover = findViewById(R.id.tvCover)
         taxonomy = TaxonomyStore.load(this)
         chipRenderers.add(
             bindChipInput(
@@ -142,6 +154,8 @@ class MainActivity : Activity() {
         btnToggle.setOnClickListener { toggleMode() }
         btnBrowser.setOnClickListener { openInBrowser() }
         btnPublish.setOnClickListener { doSave() }
+        btnAttach.setOnClickListener { chooseAttachment() }
+        tvCover.setOnClickListener { onCoverClicked() }
 
         tvMetaSummary.setOnClickListener { toggleMeta() }
         val metaWatcher = object : TextWatcher {
@@ -155,6 +169,7 @@ class MainActivity : Activity() {
         etCategories.addTextChangedListener(metaWatcher)
         etTags.addTextChangedListener(metaWatcher)
         updateMetaSummary()
+        updateCoverLabel()
 
         btnPublish.text = if (editing) "保存" else "发布"
 
@@ -252,6 +267,8 @@ class MainActivity : Activity() {
         cbDraft.isChecked = source.draft.draft
         loadedDate = source.dateIso
         extraFrontMatter = source.draft.extraFrontMatter
+        coverImage = source.draft.coverImage
+        updateCoverLabel()
         remotePath = source.meta.path
         loaded = true
         setEditable(true)
@@ -272,6 +289,234 @@ class MainActivity : Activity() {
             .setNegativeButton("返回") { _, _ -> finish() }
             .setPositiveButton("重试") { _, _ -> loadRemote() }
             .show()
+    }
+
+    // ---------- 附件 ----------
+
+    /**
+     * 附件一律「选完就上传」：不做本地暂存队列。
+     * 手机相册里的原图动辄几 MB，暂存到发布时再传会让「保存」变成长时间黑盒，
+     * 而且在身边没网时用户会以为文章本身有问题。当场传完、当场把引用插进正文，
+     * 失败就明确报失败，正文一个字都不改。
+     */
+    private fun chooseAttachment() {
+        if (!loaded) {
+            showMessage("内容还没读取完成，请稍候", true)
+            return
+        }
+        val labels = arrayOf("图片", "视频", "音频", "设为封面")
+        AlertDialog.Builder(this)
+            .setTitle("插入附件")
+            .setItems(labels) { _, index ->
+                val kind = when (index) {
+                    0 -> MediaKind.IMAGE
+                    1 -> MediaKind.VIDEO
+                    2 -> MediaKind.AUDIO
+                    else -> MediaKind.COVER
+                }
+                pickMedia(kind)
+            }
+            .show()
+    }
+
+    private fun pickMedia(kind: MediaKind) {
+        val config = ConfigStore.load(this)
+        config.connectionReady()?.let {
+            showMessage(it, true)
+            startActivity(Intent(this, SettingsActivity::class.java))
+            return
+        }
+        config.siteReady()?.let {
+            showMessage(it, true)
+            startActivity(Intent(this, SettingsActivity::class.java))
+            return
+        }
+        config.mediaReady()?.let {
+            showMessage(it, true)
+            AlertDialog.Builder(this)
+                .setTitle("附件库还没配好")
+                .setMessage(it)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("去设置") { _, _ ->
+                    startActivity(Intent(this, SettingsActivity::class.java))
+                }
+                .show()
+            return
+        }
+
+        pendingKind = kind
+        val mime = when (kind) {
+            MediaKind.IMAGE, MediaKind.COVER -> "image/*"
+            MediaKind.VIDEO -> "video/*"
+            MediaKind.AUDIO -> "audio/*"
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = mime
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(intent, REQ_PICK_MEDIA)
+        } catch (e: Exception) {
+            pendingKind = null
+            showMessage("没有可用的文件选择器", true)
+        }
+    }
+
+    @Deprecated("纯 Activity 没有 registerForActivityResult，这里继续用旧回调")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_PICK_MEDIA) return
+        val kind = pendingKind
+        pendingKind = null
+        if (resultCode != RESULT_OK || kind == null) return
+        val uri = data?.data ?: return
+        uploadAttachment(uri, kind)
+    }
+
+    private fun uploadAttachment(uri: Uri, kind: MediaKind) {
+        val config = ConfigStore.load(this)
+        val slug = SshPublisher.resolveSlug(
+            etSlug.text.toString().ifBlank { etTitle.text.toString() }
+        )
+        setBusy(true, "正在上传${kind.label}…")
+        worker.execute {
+            try {
+                val (bytes, name) = readAttachment(uri)
+                val ref = SshPublisher.uploadMedia(config, kind, bytes, name, slug)
+                mainHandler.post { onAttachmentUploaded(kind, ref) }
+            } catch (e: Exception) {
+                mainHandler.post {
+                    setBusy(false, null)
+                    showMessage("上传失败：${e.message ?: e.javaClass.simpleName}", true)
+                }
+            }
+        }
+    }
+
+    /** 连同文件名一起读出来：扩展名要跟着走，否则远端会落一堆无后缀文件 */
+    private fun readAttachment(uri: Uri): Pair<ByteArray, String> {
+        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            ?: throw IllegalStateException("读不到这个文件，可能是权限失效，重选一次试试")
+        if (bytes.isEmpty()) throw IllegalStateException("这个文件是空的")
+        if (bytes.size > MAX_ATTACHMENT_BYTES) {
+            throw IllegalStateException("文件超过 64MB，建议先压缩再传")
+        }
+        return bytes to displayName(uri)
+    }
+
+    private fun displayName(uri: Uri): String {
+        try {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { cursor ->
+                    if (cursor.moveToFirst() && !cursor.isNull(0)) {
+                        val name = cursor.getString(0)
+                        if (!name.isNullOrBlank()) return name
+                    }
+                }
+        } catch (_: Exception) {
+            // 查不到名字不影响上传，扩展名会回落到按类型给的默认值
+        }
+        return uri.lastPathSegment.orEmpty()
+    }
+
+    private fun onAttachmentUploaded(kind: MediaKind, ref: SshPublisher.MediaRef) {
+        setBusy(false, null)
+        if (kind == MediaKind.COVER) {
+            coverImage = ref.urlPath
+            updateCoverLabel()
+            showMessage("封面已上传：${ref.urlPath}", false)
+            return
+        }
+        if (previewing) leavePreview()
+        val snippet = when (kind) {
+            MediaKind.VIDEO -> "<video controls src=\"${ref.urlPath}\" style=\"max-width:100%\"></video>"
+            MediaKind.AUDIO -> "<audio controls src=\"${ref.urlPath}\" style=\"width:100%\"></audio>"
+            else -> "![](${ref.urlPath})"
+        }
+        insertAtCursor(snippet)
+        showMessage("已上传 ${ref.fileName}，引用已插入光标处", false)
+        if (kind == MediaKind.VIDEO || kind == MediaKind.AUDIO) showHtmlHintOnce()
+    }
+
+    /**
+     * 视频/音频走 HTML 标签，而 Hugo 默认丢弃正文原始 HTML（goldmark unsafe=false），
+     * 构建后只会剩一条 raw HTML omitted 注释。这是站点侧配置问题，App 改不了，
+     * 所以只在第一次插入时讲清楚，之后不再打扰。
+     */
+    private fun showHtmlHintOnce() {
+        val prefs = getSharedPreferences("blogpad_flags", MODE_PRIVATE)
+        if (prefs.getBoolean("html_hint_shown", false)) return
+        prefs.edit().putBoolean("html_hint_shown", true).apply()
+        AlertDialog.Builder(this)
+            .setTitle("视频/音频需要站点配合")
+            .setMessage(
+                "插入的是 HTML 标签。Hugo 默认不允许正文写原始 HTML，构建时会把整段丢掉。\n\n" +
+                    "在站点配置里加上这三行即可：\n\n" +
+                    "[markup.goldmark.renderer]\n    unsafe = true\n\n" +
+                    "图片和封面用的是标准 Markdown，不需要这项。"
+            )
+            .setNegativeButton("知道了", null)
+            .setPositiveButton("复制配置") { _, _ -> copyText("[markup.goldmark.renderer]\n    unsafe = true") }
+            .show()
+    }
+
+    private fun copyText(text: String) {
+        val manager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        manager.setPrimaryClip(ClipData.newPlainText("blogpad", text))
+        showMessage("配置片段已复制", false)
+    }
+
+    /** 块级插入：前后各留一个空行，避免图片/HTML 被并进上一段或被当成代码块 */
+    private fun insertAtCursor(snippet: String) {
+        val editable = etBody.text
+        val start = etBody.selectionStart.coerceAtLeast(0).coerceAtMost(editable.length)
+        val end = etBody.selectionEnd.coerceAtLeast(0).coerceAtMost(editable.length)
+        val lo = minOf(start, end)
+        val hi = maxOf(start, end)
+        val before = editable.substring(0, lo)
+        val after = editable.substring(hi)
+        val lead = when {
+            before.isEmpty() -> ""
+            before.endsWith("\n\n") -> ""
+            before.endsWith("\n") -> "\n"
+            else -> "\n\n"
+        }
+        val trail = when {
+            after.isEmpty() -> "\n"
+            after.startsWith("\n\n") -> ""
+            after.startsWith("\n") -> "\n"
+            else -> "\n\n"
+        }
+        val block = lead + snippet + trail
+        editable.replace(lo, hi, block)
+        etBody.setSelection((lo + block.length).coerceAtMost(editable.length))
+    }
+
+    private fun onCoverClicked() {
+        if (coverImage.isBlank()) {
+            pickMedia(MediaKind.COVER)
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("封面")
+            .setMessage(coverImage)
+            .setNegativeButton("取消", null)
+            .setNeutralButton("清除") { _, _ ->
+                coverImage = ""
+                updateCoverLabel()
+                showMessage("已清除封面，保存后 front matter 不再有 image", false)
+            }
+            .setPositiveButton("重新选择") { _, _ -> pickMedia(MediaKind.COVER) }
+            .show()
+    }
+
+    private fun updateCoverLabel() {
+        tvCover.text = if (coverImage.isBlank()) {
+            "封面：未设置"
+        } else {
+            "封面：${coverImage.substringAfterLast('/')}"
+        }
     }
 
     // ---------- 保存 ----------
@@ -315,6 +560,7 @@ class MainActivity : Activity() {
             body = body,
             draft = cbDraft.isChecked,
             date = if (editing) loadedDate else null,
+            coverImage = coverImage,
             extraFrontMatter = if (editing) extraFrontMatter else emptyList()
         )
         val original = remotePath
@@ -396,6 +642,19 @@ class MainActivity : Activity() {
             resources.displayMetrics.density
         ) { url -> openExternal(url) }
 
+        if (coverImage.isNotBlank()) {
+            val head = TextView(this)
+            head.text = "封面 · $coverImage"
+            head.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11.5f)
+            head.setTextColor(0xFF9AA0A8.toInt())
+            val lp = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            lp.bottomMargin = dp(6)
+            previewPane.addView(head, 0, lp)
+        }
+
         previewing = true
         editPane.visibility = View.GONE
         previewPane.visibility = View.VISIBLE
@@ -453,6 +712,9 @@ class MainActivity : Activity() {
 
     private fun setBusy(busy: Boolean, status: String?) {
         btnPublish.isEnabled = !busy
+        // 上传/保存期间锁住附件入口，避免同一个文件被点两次传成两份
+        btnAttach.isEnabled = !busy
+        tvCover.isEnabled = !busy
         btnPublish.text = when {
             busy -> if (editing) "保存中…" else "发布中…"
             else -> if (editing) "保存" else "发布"
@@ -472,6 +734,8 @@ class MainActivity : Activity() {
         etBody.isEnabled = enabled
         cbDraft.isEnabled = enabled
         btnPublish.isEnabled = enabled
+        btnAttach.isEnabled = enabled
+        tvCover.isEnabled = enabled
     }
 
     private fun showMessage(message: String, isError: Boolean) {
@@ -572,6 +836,7 @@ class MainActivity : Activity() {
         etCategories.text.toString(),
         etTags.text.toString(),
         cbDraft.isChecked.toString(),
+        coverImage,
         etBody.text.toString()
     ).joinToString("\u0000")
 
@@ -584,6 +849,7 @@ class MainActivity : Activity() {
             .putString("categories", etCategories.text.toString())
             .putString("tags", etTags.text.toString())
             .putString("body", etBody.text.toString())
+            .putString("cover", coverImage)
             .apply()
     }
 
@@ -594,5 +860,7 @@ class MainActivity : Activity() {
         etCategories.setText(prefs.getString("categories", ""))
         etTags.setText(prefs.getString("tags", ""))
         etBody.setText(prefs.getString("body", ""))
+        coverImage = prefs.getString("cover", "").orEmpty()
+        updateCoverLabel()
     }
 }

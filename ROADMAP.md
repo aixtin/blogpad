@@ -2,7 +2,7 @@
 
 ## Release policy
 
-Published releases: **v1.0.0**, **v1.5.0**, and **v1.5.1**.
+Published releases: **v1.0.0**, **v1.5.0**, **v1.5.1**, and **v1.6.0**.
 
 v1.1 through v1.4 are internal milestones, not releases. Each milestone must compile and install on
 a real device for self-testing, but it gets no tag, no GitHub Release, and no download-point update.
@@ -42,6 +42,7 @@ bumped only when a release actually ships.
 | v1.3 | Category and tag discovery: scan existing front matter, offer selectable chips, allow new values | Done | Taxonomy cached in SharedPreferences, rewritten on every list refresh; chips are shortcuts only |
 | v1.4 | Housekeeping: delete post, draft → published, search, offline list cache | Done | Delete and draft toggle both rebuild and roll back on failure; search filters title/slug/tags/categories in memory; last successful listing is cached for offline viewing, and writes stay blocked while offline |
 | v1.5 | Preview: structural read-only render, toggle in the top bar, cursor position preserved, "open in browser" escape hatch | Released | Renders headings, lists, quotes, fenced code, tables, images and links; the toggle keeps scroll offset and cursor; the browser button shows only when the post has a live URL |
+| v1.6.0 | Media library: attachment upload into `static/upload` with per-type subdirectories, insertion at the cursor, cover written to front matter `image`, remote images loaded in preview | Released | Video and audio need goldmark `unsafe` on the site; attachments are read fully into memory, capped at 64 MB |
 | v1.5.1 | Interaction cleanup: icon top bar, on-demand search, new-post FAB, pull to refresh; rows show date + status; collapsible metadata and a single bottom action; card-based settings, segmented auth, custom fingerprint dialog; title opens About with GitHub Releases update check and a Toast notice | Released | Publish results and long-press actions still use the existing dialogs; a bottom sheet and dark mode come later |
 
 ## Interaction rules for editing and preview (v1.5.1)

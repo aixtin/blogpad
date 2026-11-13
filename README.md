@@ -17,7 +17,16 @@ database, no third-party service — just SSH and a Git-based site.
 - **Write and publish from the phone** — title, slug, categories, tags, body, and a draft toggle;
   slug, categories and tags stay collapsed behind a one-line summary until tapped.
 - **Markdown with Hugo front matter** — generated automatically (`title`, `date`, `draft`, `slug`,
-  `categories`, `tags`), so the file drops straight into a Hugo site.
+  `categories`, `tags`, and `image` when a cover is picked), so the file drops straight into a
+  Hugo site.
+- **Attachments** — pick an image, video or audio file and it is uploaded by SFTP into a media
+  directory under the site's `static/` tree, then referenced at the cursor as a root-relative
+  Markdown image or an HTML media tag. Names are `<slug>-<timestamp>.<ext>`, so nothing collides.
+- **Cover image** — the cover goes to its own subdirectory and is written only into the front
+  matter `image` key; it never appears in the body.
+- **Local preview of images** — remote `https://` images and downloaded covers are decoded and
+  shown in the preview; site-relative paths are reported as "visible after publish" instead of
+  failing.
 - **SSH transport** — SFTP upload plus remote command execution over a single session.
   Public key (OpenSSH `ed25519` / `rsa`) and password authentication are both supported.
 - **Host key pinning** — the SHA-256 fingerprint must be confirmed once and is then stored;
@@ -80,6 +89,25 @@ Notes:
 - If a link template is set it wins over the site URL; otherwise the fallback is
   `<siteUrl>/archives/<slug>/`.
 
+### Media library
+
+| Field | Default | Notes |
+|-------|---------|-------|
+| Media root | `static/upload` | Must sit under `static/` and be relative to the site root |
+| Group by type | on | When on, kinds are split into the subdirectories below |
+| Subdirectories | `images,videos,audio,covers` | Positional: image, video, audio, cover |
+
+Notes:
+
+- The public URL is derived from the physical path, so `static/upload/images` is referenced as
+  `/upload/images/...` and the domain comes from the site's `baseURL`. No second URL prefix to
+  maintain.
+- Absolute paths, `..`, and the Hugo `assets/` directory are rejected: `assets/` is a Hugo Pipes
+  resource directory and cannot be referenced directly, only `static/` is copied to the site root.
+- Video and audio are inserted as HTML tags, which Hugo drops unless
+  `markup.goldmark.renderer.unsafe = true` is set in the site configuration. Images and covers use
+  plain Markdown and are unaffected.
+
 ## Usage
 
 1. The app opens on the post list. Tap **New** to start a post, or tap a row to edit it.
@@ -141,6 +169,7 @@ app/src/main/java/io/github/aixtin/blogpad/
 |---------|------|-------------|-------|
 | 1.0.0 | 2026-11-09 | 1 | First release: single-screen editor with write, publish, draft, and rollback |
 | 1.5.0 | 2026-11-10 | 3 | Post list, editing existing posts, categories and tags, housekeeping, structural preview |
+| 1.6.0 | 2026-11-13 | 5 | Media library: attachment upload over SFTP into `static/upload` with per-type subdirectories, cursor-relative insertion, cover image written to front matter `image`, and remote image preview |
 | 1.5.1 | 2026-11-11 | 4 | Interaction rework: icon top bar, on-demand search, new-post FAB, pull to refresh; rows show date + status; collapsible post metadata and a single bottom action; card-based settings, segmented auth, custom fingerprint dialog; tapping the title opens About, which checks GitHub Releases and announces new versions with a Toast |
 
 The release procedure lives in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md).

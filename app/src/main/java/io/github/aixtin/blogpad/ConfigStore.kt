@@ -28,8 +28,60 @@ data class Config(
     var buildCmd: String = "hugo --gc --minify",
     var siteUrl: String = "",
     var linkTemplate: String = "",
-    var hostFingerprint: String = ""
+    var hostFingerprint: String = "",
+    /** 附件库根目录，相对站点根，必须落在 static 下 */
+    var mediaRoot: String = DEFAULT_MEDIA_ROOT,
+    /** 是否按类型分子目录；关掉则所有附件平铺在 mediaRoot */
+    var mediaGrouping: Boolean = true,
+    /** 四个分类子目录名，逗号分隔：图片、视频、音频、封面 */
+    var mediaSubdirs: String = DEFAULT_MEDIA_SUBDIRS
 ) {
+
+    /** 分类子目录名，索引对应 MediaKind.index；缺项回落到默认名 */
+    fun mediaSubdir(kind: MediaKind): String {
+        val names = mediaSubdirs.split(',', '，', ';', '；')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+        return names.getOrNull(kind.index) ?: kind.fallbackName
+    }
+
+    /** 附件在站点内的物理目录（相对 siteRoot） */
+    fun mediaDir(kind: MediaKind): String {
+        val root = mediaRoot.trim().trim('/').ifEmpty { DEFAULT_MEDIA_ROOT }
+        return if (mediaGrouping) "$root/${mediaSubdir(kind)}" else root
+    }
+
+    /** 该附件的站内 URL 目录（根相对），由物理目录推导：static/upload/images -> /upload/images */
+    fun mediaUrlDir(kind: MediaKind): String {
+        val physical = mediaDir(kind)
+        val rel = if (physical == "static") "" else physical.removePrefix("static").trim('/')
+        return if (rel.isEmpty()) "" else "/$rel"
+    }
+
+    /** 附件库配置校验；返回 null 表示可用 */
+    fun mediaReady(): String? {
+        val raw = mediaRoot.trim()
+        if (raw.isEmpty()) return "请填写附件库目录（默认 static/upload）"
+        if (raw.startsWith("/")) return "附件库目录要写相对站点根的路径，不能以 / 开头"
+        if (raw.split('/').any { it == ".." }) return "附件库目录不能包含 ..，不允许跳出站点根目录"
+        if (raw == "assets" || raw.startsWith("assets/")) {
+            return "assets/ 不是公开路径，放进去的附件会被构建丢弃（Markdown 引用 404）。请改用 static/ 下的目录"
+        }
+        if (raw != "static" && !raw.startsWith("static/")) {
+            return "附件库必须位于 static/ 下，否则 Hugo 不会复制到站点根"
+        }
+        if (mediaGrouping) {
+            val names = mediaSubdirs.split(',', '，', ';', '；').map { it.trim() }
+            if (names.size < MediaKind.values().size || names.any { it.isEmpty() }) {
+                return "分类子目录要填满 4 个：图片、视频、音频、封面"
+            }
+            if (names.any { it.contains('/') || it == ".." }) {
+                return "分类子目录只能写单层目录名，不能带 / 或 .."
+            }
+        }
+        return null
+    }
+
     fun connectionReady(): String? = when {
         host.isBlank() -> "请先在设置里填写主机地址"
         user.isBlank() -> "请先在设置里填写用户名"
@@ -52,9 +104,14 @@ data class Config(
         put("siteRoot", siteRoot); put("postDir", postDir)
         put("buildCmd", buildCmd); put("siteUrl", siteUrl)
         put("linkTemplate", linkTemplate); put("hostFingerprint", hostFingerprint)
+        put("mediaRoot", mediaRoot); put("mediaGrouping", mediaGrouping)
+        put("mediaSubdirs", mediaSubdirs)
     }
 
     companion object {
+        const val DEFAULT_MEDIA_ROOT = "static/upload"
+        const val DEFAULT_MEDIA_SUBDIRS = "images,videos,audio,covers"
+
         fun fromJson(o: JSONObject): Config = Config(
             host = o.optString("host", ""),
             port = o.optInt("port", 22),
@@ -68,8 +125,28 @@ data class Config(
             buildCmd = o.optString("buildCmd", "hugo --gc --minify"),
             siteUrl = o.optString("siteUrl", ""),
             linkTemplate = o.optString("linkTemplate", ""),
-            hostFingerprint = o.optString("hostFingerprint", "")
+            hostFingerprint = o.optString("hostFingerprint", ""),
+            mediaRoot = o.optString("mediaRoot", DEFAULT_MEDIA_ROOT),
+            mediaGrouping = o.optBoolean("mediaGrouping", true),
+            mediaSubdirs = o.optString("mediaSubdirs", DEFAULT_MEDIA_SUBDIRS)
         )
+    }
+}
+
+/** 附件类型：决定落到哪个子目录、插入什么 Markdown 语法 */
+enum class MediaKind(val index: Int, val fallbackName: String, val label: String) {
+    IMAGE(0, "images", "图片"),
+    VIDEO(1, "videos", "视频"),
+    AUDIO(2, "audio", "音频"),
+    COVER(3, "covers", "封面");
+
+    companion object {
+        fun of(mime: String?): MediaKind = when {
+            mime == null -> IMAGE
+            mime.startsWith("video/") -> VIDEO
+            mime.startsWith("audio/") -> AUDIO
+            else -> IMAGE
+        }
     }
 }
 

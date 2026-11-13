@@ -28,6 +28,7 @@ data class PostDraft(
     val body: String,
     val draft: Boolean,
     val date: String? = null,
+    val coverImage: String = "",
     val extraFrontMatter: List<String> = emptyList()
 )
 
@@ -56,7 +57,7 @@ object PostRepository {
     private const val MARK_END = "@@@END"
 
     /** 被 App 管理的 front matter 键，其余键原样保留 */
-    private val MANAGED = setOf("title", "slug", "date", "draft", "categories", "tags")
+    private val MANAGED = setOf("title", "slug", "date", "draft", "categories", "tags", "image")
 
     fun postDir(config: Config): String {
         val postDir = config.postDir.trim('/').ifEmpty { "content/post" }
@@ -311,6 +312,10 @@ object PostRepository {
             text.append(tags.joinToString(", ") { JSONObject.quote(it) })
             text.append("]\n")
         }
+        val cover = draft.coverImage.trim()
+        if (cover.isNotEmpty()) {
+            text.append("image: ").append(JSONObject.quote(cover)).append('\n')
+        }
         draft.extraFrontMatter.forEach { line ->
             if (line.isNotBlank()) text.append(line).append('\n')
         }
@@ -422,6 +427,7 @@ object PostRepository {
             body = body,
             draft = meta.draft,
             date = fields["date"]?.let { unquote(it) },
+            coverImage = unquote(fields["image"].orEmpty()),
             extraFrontMatter = extra
         )
         return PostSource(meta = meta, draft = draft, dateIso = draft.date)
